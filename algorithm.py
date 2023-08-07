@@ -22,6 +22,9 @@ class Algorithm():
         self.active_injection_constraints = {}
         self.reactive_injection_constraints = {}
         self.line_constraints = {}
+
+        self.lam = {}
+
         self.Y = pickle.load(open("Line_Ymatrix.pickle", "rb"))
         allnodes = self.neighbors + self.nodes
 
@@ -31,11 +34,11 @@ class Algorithm():
                 self.active_injection_constraints[node] = (0,0)
                 self.reactive_injection_constraints[node] = (0,0)
             else:
-                self.active_injection_constraints[node] = (-100000, 100000)
-                self.reactive_injection_constraints[node] = (-100000, 100000)
+                self.active_injection_constraints[node] = (-100, 100)
+                self.reactive_injection_constraints[node] = (-100, 100)
 
         for line in self.lines:
-            self.line_constraints[line] = 1000000
+            self.line_constraints[line] = 100000
     
     
     # def __init__(self):
@@ -63,6 +66,10 @@ class Algorithm():
     #         self.line_constraints[line] = 1000000
 
     # set constraints
+
+    def set_lambda(self, key, value):
+        self.lam[key] = value
+
     def set_power_constraints(self, P_up, P_low, Q_up, Q_low, P_line):
         self.P_up = P_up
         self.P_low = P_low
@@ -70,7 +77,7 @@ class Algorithm():
         self.Q_low = Q_low
         self.P_line = P_line
 
-    def calculate_multi(self, v, lam, W_shared):
+    def calculate_multi(self, v, W_shared):
         n = len(self.nodes) + len(self.neighbors)
         buses = self.nodes + self.neighbors
         # assign each node an index
@@ -120,7 +127,9 @@ class Algorithm():
         constraints = [W >> 0]
 
         # This constrains the voltage at all buses even the neighbors
-        constraints += [(W[index[node]][index[node]] == v[node] * v[node]) for node in buses]
+        for node in buses:
+            constraints += [(W[index[node]][index[node]] == v[node] * v[node])]
+
 
         # Only for the nodes that are in the group (i.e. not the neighbors) constrain the power injection
         constraints += [(cp.real(cp.trace(A[node] @ W)) <= self.active_injection_constraints[node][1]) for node in self.nodes]
@@ -129,8 +138,8 @@ class Algorithm():
         constraints += [(cp.real(cp.trace(B[node] @ W)) >= self.reactive_injection_constraints[node][0]) for node in self.nodes]
 
         # For all lines including neighbor lines constrain the power flow
-        #for line in self.lines:
-            #constraints += [(cp.abs(cp.trace(A_line[line] @ W)) <= self.line_constraints[line])]
+        for line in self.lines:
+            constraints += [(cp.abs(cp.trace(A_line[line] @ W)) <= self.line_constraints[line])]
 
 
         # construct the objective function as per equations (13) from Alejandros paper mangled to fit (8)
@@ -138,7 +147,7 @@ class Algorithm():
         for node in self.nodes:
             f.append(cp.real(cp.trace(A[node]@W)))
         for line in self.neighbor_lines:
-            f.append(cp.real(lam[line][0]*(W[index[line[0]]][index[line[1]]]-W_shared[line][0]) + lam[line][1]*(W[index[line[0]]][index[line[1]]]-W_shared[line][1])))
+            f.append(cp.real(self.lam[line][0]*(W[index[line[0]]][index[line[1]]]-W_shared[line][0]) + self.lam[line][1]*(W[index[line[0]]][index[line[1]]]-W_shared[line][1])))
 
         prob = cp.Problem(cp.Minimize(sum(f)), constraints)
         # prob.solve(verbose=True)
@@ -149,10 +158,9 @@ class Algorithm():
         # print(W.value)
 
 
-        prob.solve(solver=cp.MOSEK)
+        prob.solve()
 
         # Print result.
-        print("MOSEK")
         print("The optimal value is", prob.value)
         print("A solution W is")
         print(W.value)
@@ -199,82 +207,16 @@ class Algorithm():
 
 
 
-        for node in self.nodes:
-            print("-------------------------------")
-            print("node: ", node)
-            print("constraints")
-            print(self.active_injection_constraints[node][0])
-            print(self.active_injection_constraints[node][1])
-            print(self.reactive_injection_constraints[node][0])
-            print(self.reactive_injection_constraints[node][1])
-            print("active: ", np.trace(A[node] @ W.value))
-            print("reactive", np.trace(B[node]@W.value))
-
-
-
-    def calculate(self, Y, v, lam):
-        n = 3
-        E = np.array(np.zeros((n,n)))
-        E[self.node_number][self.node_number] = 1
-        A = (0.5)*(np.transpose(np.conjugate(Y))@E + E@Y)
-        B = (1.0/(2j)) * (np.transpose(np.conjugate(Y)) @ E - E @ Y)
-
-        # print(A)
-        # print(B)
-
-        Ak = []
-        for k in range(n-1):
-            Ak.append(np.array(np.zeros((n,n),dtype=complex)))
-            ind = k
-            if k >= self.node_number:
-                ind = k + 1
-            for l in range(n):
-                for m in range(n):
-                    if l == m and m == self.node_number:
-                        Ak[k][l][m] = np.real(Y[self.node_number][ind])
-                    elif l == self.node_number and m == k:
-                        Ak[k][l][m] = (-Y[self.node_number][ind])/2
-                    elif l == k and m == self.node_number:
-                        Ak[k][l][m] = (-np.transpose(np.conjugate(Y[self.node_number][ind])))/ 2
-                    else:
-                        Ak[k][l][m] = 0
-
-        print(Ak)
-
-        A_til = A
-        for i in range(n):
-            for j in range(n):
-                if i == j:
-                    A_til[i][j] = A[i][j];
-                elif i < j:
-                    A_til[i][j] = A[i][j] + lam[i][j]
-                else:
-                    A_til[i][j] = A[i][j] - lam[i][j]
-
-        print(A_til)
-
-        W = cp.Variable((n,n), symmetric=True)
-
-        constraints = [W >> 0]
-        constraints += [(W[i][i] == v[i]*v[i]) for i in range(n)]
-        constraints += [cp.real(cp.trace(A@W)) <= self.P_up]
-        constraints += [cp.real(cp.trace(A @ W)) <= self.Q_up]
-        constraints += [cp.real(cp.trace(B @ W)) >= self.P_low]
-        constraints += [cp.real(cp.trace(B @ W)) >= self.Q_low]
-        constraints += [(cp.abs(cp.trace(Ak[i] @ W)) <= self.P_line) for i in range(n-1) ]
-
-        prob = cp.Problem(cp.Minimize(cp.real(cp.trace(A_til @ W))), constraints)
-        prob.solve()
-
-        # Print result.
-        print("The optimal value is", prob.value)
-        print("A solution W is")
-        print(W.value)
-        P_inj = np.trace(A@W.value)
-        Q_inj = np.trace(B@W.value)
-        print("Pinj: ",P_inj)
-        print("Qinj: ",Q_inj)
-
+        # for node in self.nodes:
+        #     print("-------------------------------")
+        #     print("node: ", node)
+        #     print("constraints")
+        #     print(self.active_injection_constraints[node][0])
+        #     print(self.active_injection_constraints[node][1])
+        #     print(self.reactive_injection_constraints[node][0])
+        #     print(self.reactive_injection_constraints[node][1])
+        #     print("active: ", np.trace(A[node] @ W.value))
+        #     print("reactive", np.trace(B[node]@W.value))
 
 
 
