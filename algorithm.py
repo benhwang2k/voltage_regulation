@@ -1,5 +1,6 @@
 import cvxpy as cp
 import numpy as np
+import pickle
 
 
 class Algorithm():
@@ -12,21 +13,17 @@ class Algorithm():
     """
 
     # Constructor for group 6
-    def __init__(self):
-        self.nodes = [3, 4, 5, 20, 21,43,44,45,46]
-        self.neighbors = [0]
-        self.lines = [(0,3),(3,43),(4,43),(4,5),(43,44),(20,43),(20,21),(21,45),(21,46)]
-        self.neighbor_lines = [(0,3)]
-        self.generator = 45
+    def __init__(self, nodes, neighbors, lines, neighbor_lines, generator,):
+        self.nodes = nodes
+        self.neighbors = neighbors
+        self.lines = lines
+        self.neighbor_lines = neighbor_lines
+        self.generator = generator
         self.active_injection_constraints = {}
         self.reactive_injection_constraints = {}
         self.line_constraints = {}
-
-        self.Y = {}
+        self.Y = pickle.load(open("Line_Ymatrix.pickle", "rb"))
         allnodes = self.neighbors + self.nodes
-        for i in allnodes:
-            for j in allnodes:
-                self.Y[(i,j)] = 1+1j
 
         #construct map and matricies
         for node in self.nodes:
@@ -34,11 +31,36 @@ class Algorithm():
                 self.active_injection_constraints[node] = (0,0)
                 self.reactive_injection_constraints[node] = (0,0)
             else:
-                self.active_injection_constraints[node] = (-100, 100)
-                self.reactive_injection_constraints[node] = (-100, 100)
+                self.active_injection_constraints[node] = (-100000, 100000)
+                self.reactive_injection_constraints[node] = (-100000, 100000)
 
         for line in self.lines:
-            self.line_constraints[line] = 100
+            self.line_constraints[line] = 1000000
+    
+    
+    # def __init__(self):
+    #     self.nodes = [3, 4, 5, 20, 21,43,44,45,46]
+    #     self.neighbors = [0]
+    #     self.lines = [(0,3),(3,43),(4,43),(4,5),(43,44),(20,43),(20,21),(21,45),(21,46)]
+    #     self.neighbor_lines = [(0,3)]
+    #     self.generator = 45
+    #     self.active_injection_constraints = {}
+    #     self.reactive_injection_constraints = {}
+    #     self.line_constraints = {}
+    #     self.Y = pickle.load(open("Line_Ymatrix.pickle", "rb"))
+    #     allnodes = self.neighbors + self.nodes
+    # 
+    #     #construct map and matricies
+    #     for node in self.nodes:
+    #         if node != self.generator:
+    #             self.active_injection_constraints[node] = (0,0)
+    #             self.reactive_injection_constraints[node] = (0,0)
+    #         else:
+    #             self.active_injection_constraints[node] = (-100000, 100000)
+    #             self.reactive_injection_constraints[node] = (-100000, 100000)
+    # 
+    #     for line in self.lines:
+    #         self.line_constraints[line] = 1000000
 
     # set constraints
     def set_power_constraints(self, P_up, P_low, Q_up, Q_low, P_line):
@@ -61,7 +83,7 @@ class Algorithm():
         Y = np.array(np.zeros((n,n),dtype=complex))
         for i in buses:
             for k in buses:
-                Y[index[i]][index[k]] = self.Y[(i,k)]
+                Y[index[i]][index[k]] = self.Y[i][k]
 
         # For each group node make Ai and Ai_til
         A = {}
@@ -78,7 +100,7 @@ class Algorithm():
         # For each line make Aik
         A_line = {}
         for line in self.lines:
-            Yik = self.Y[line]
+            Yik = self.Y[line[0]][line[1]]
             A_temp = np.array(np.zeros((n,n),dtype=complex))
             for l in range(n):
                 for m in range(n):
@@ -93,7 +115,7 @@ class Algorithm():
             A_line[line] = A_temp
 
         # use (13) as the objective function and (12) as constraints without f, g
-        W = cp.Variable((n, n), symmetric=True)
+        W = cp.Variable((n, n), PSD=True)
 
         constraints = [W >> 0]
 
@@ -107,8 +129,8 @@ class Algorithm():
         constraints += [(cp.real(cp.trace(B[node] @ W)) >= self.reactive_injection_constraints[node][0]) for node in self.nodes]
 
         # For all lines including neighbor lines constrain the power flow
-        for line in self.lines:
-            constraints += [(cp.abs(cp.trace(A_line[line] @ W)) <= self.line_constraints[line])]
+        #for line in self.lines:
+            #constraints += [(cp.abs(cp.trace(A_line[line] @ W)) <= self.line_constraints[line])]
 
 
         # construct the objective function as per equations (13) from Alejandros paper mangled to fit (8)
@@ -119,12 +141,76 @@ class Algorithm():
             f.append(cp.real(lam[line][0]*(W[index[line[0]]][index[line[1]]]-W_shared[line][0]) + lam[line][1]*(W[index[line[0]]][index[line[1]]]-W_shared[line][1])))
 
         prob = cp.Problem(cp.Minimize(sum(f)), constraints)
-        prob.solve()
+        # prob.solve(verbose=True)
+        #
+        # Print result.
+        # print("The optimal value is", prob.value)
+        # print("A solution W is")
+        # print(W.value)
+
+
+        prob.solve(solver=cp.MOSEK)
 
         # Print result.
+        print("MOSEK")
         print("The optimal value is", prob.value)
         print("A solution W is")
         print(W.value)
+
+        #
+        #
+        # prob.solve(solver=cp.COPT)
+        #
+        # # Print result.
+        # print("COPT")
+        # print("The optimal value is", prob.value)
+        # print("A solution W is")
+        # print(W.value)
+        #
+        # prob.solve(solver=cp.SDPA)
+        #
+        # # Print result.
+        # print("SDPA")
+        # print("The optimal value is", prob.value)
+        # print("A solution W is")
+        # print(W.value)
+        #
+        # prob.solve(solver=cp.SCS, max_iters=100, verbose=True)
+        #
+        # # Print result.
+        # print("SCS")
+        # print("The optimal value is", prob.value)
+        # print("A solution W is")
+        # print(W.value)
+
+        # prob.solve(solver=cp.SCS)
+        # # Print result.
+        # print("SCS")
+        # print("The optimal value is", prob.value)
+        # print("A solution W is")
+        # print(W.value)
+        # prob.solve(solver=cp.CVXOPT)
+        #
+        # # Print result.
+        # print("CVXOPT")
+        # print("The optimal value is", prob.value)
+        # print("A solution W is")
+        # print(W.value)
+
+
+
+        for node in self.nodes:
+            print("-------------------------------")
+            print("node: ", node)
+            print("constraints")
+            print(self.active_injection_constraints[node][0])
+            print(self.active_injection_constraints[node][1])
+            print(self.reactive_injection_constraints[node][0])
+            print(self.reactive_injection_constraints[node][1])
+            print("active: ", np.trace(A[node] @ W.value))
+            print("reactive", np.trace(B[node]@W.value))
+
+
 
     def calculate(self, Y, v, lam):
         n = 3
