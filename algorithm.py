@@ -73,7 +73,7 @@ class Algorithm():
             for k in shared_nodes:
                 if (i,k) in self.lines:
                     # if this is a line in the network, update the associated lambda
-                    print(f'W2 {W_i[index_i[i]][index_i[k]]}, W1 {W_k[index_k[i]][index_k[k]]}, differenc: {W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]]}')
+                    print(f'line: ({i},{k}), Wi {W_i[index_i[i]][index_i[k]]}, Wk {W_k[index_k[i]][index_k[k]]}, differenc: {W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]]}')
 
                     lam_ik = self.lam[(i,k)][0] + alpha * (W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]])
                     lam_ki = self.lam[(i, k)][1] + alpha * (W_k[index_k[i]][index_k[k]] - W_i[index_i[i]][index_i[k]])
@@ -162,7 +162,6 @@ class Algorithm():
         for node in self.nodes:
             f.append(cp.real(cp.trace(A[node]@W)))
         for line in self.neighbor_lines:
-            print(self.lam[line][0],self.lam[line][1])
             f.append(cp.real(cp.abs(self.lam[line][0]*(W[index[line[0]]][index[line[1]]]-W_shared[line][0])) + cp.abs(self.lam[line][1]*(W[index[line[0]]][index[line[1]]]-W_shared[line][1]))))
 
         prob = cp.Problem(cp.Minimize(sum(f)), constraints)
@@ -177,7 +176,7 @@ class Algorithm():
         prob.solve()
 
         # Print result.
-        print("The optimal value is", prob.value)
+        # print("The optimal value is", prob.value)
         # print("A solution W is")
         # print(W.value)
 
