@@ -34,19 +34,19 @@ battery_capacity = 10000  # number used for both kVA and kVAR
 
 for row in range(1,49):
     if table[row][1] == 0:
-        load_act[table[row][1]] = float(table[row][5])/6700.0
-        load_react[table[row][1]] = float(table[row][6])/6700.0
+        load_act[table[row][1]] = float(table[row][5])/67.000
+        load_react[table[row][1]] = float(table[row][6])/67.000
         if table[row][1] in batteries:
             cap_act[table[row][1]] = battery_capacity/12.470
             cap_react[table[row][1]] = battery_capacity/12.470
     else:
-        load_act[table[row][1]] = float(table[row][5])/1247.0
-        load_react[table[row][1]] = float(table[row][6])/1247.0
+        load_act[table[row][1]] = float(table[row][5])/12.470
+        load_react[table[row][1]] = float(table[row][6])/12.470
         if table[row][1] in batteries:
             cap_act[table[row][1]] = battery_capacity/12.470
             cap_react[table[row][1]] = battery_capacity/12.470
     if not np.isnan(table[row][9]):
-        load_act[table[row][1]] -= float(table[row][9])/1247.0
+        load_act[table[row][1]] -= float(table[row][9])/12.470
 
 # Now load and capacity in per unit are initialized
 # 
@@ -178,7 +178,12 @@ for t in range(100):
     group2.update_lambda(alpha, index_2, W_2, index_4, W_4)
 
 
-
+print("P1: ", P_1)
+print("P2: ", P_2)
+print("P3: ", P_3)
+print("P4: ", P_4)
+print("P5: ", P_5)
+print("P6: ", P_6)
 
 
 
