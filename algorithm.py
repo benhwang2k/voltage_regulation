@@ -43,38 +43,44 @@ class Algorithm():
     def set_net_load(self, load_act, load_react, cap_act, cap_react):
         # construct map and matricies
         for node in self.nodes:
-            if node != self.generator:
-                self.active_injection_constraints[node] = (load_act[node],load_act[node])
-                self.reactive_injection_constraints[node] = (load_react[node],load_react[node])
-            else:
-                self.active_injection_constraints[node] = (load_act[node], load_act[node] + cap_act[node])
-                self.reactive_injection_constraints[node] = (load_react[node], load_react[node] + cap_react[node]))
+            self.active_injection_constraints[node] = (-load_act[node], -load_act[node] + cap_act[node])
+            self.reactive_injection_constraints[node] = (-load_react[node], -load_react[node] + cap_react[node])
+            # print(f'node {node:d} has active capacity: ', self.active_injection_constraints[node])
+            # print(f'node {node:d} has reactive capacity: ', self.reactive_injection_constraints[node])
+            # if node != self.generator:
+            #     self.active_injection_constraints[node] = (-load_act[node],-load_act[node])
+            #     self.reactive_injection_constraints[node] = (-load_react[node],-load_react[node])
+            #     print(f'node {node:d} has active capacity: ', self.active_injection_constraints[node])
+            #     print(f'node {node:d} has reactive capacity: ', self.reactive_injection_constraints[node])
+            # else:
+            #     self.active_injection_constraints[node] = (-load_act[node], -load_act[node] + cap_act[node])
+            #     self.reactive_injection_constraints[node] = (-load_react[node], -load_react[node] + cap_react[node])
+            #     print(f'node {node:d} has active capacity: ', self.active_injection_constraints[node])
+            #     print(f'node {node:d} has reactive capacity: ', self.reactive_injection_constraints[node])
 
-    # def __init__(self):
-    #     self.nodes = [3, 4, 5, 20, 21,43,44,45,46]
-    #     self.neighbors = [0]
-    #     self.lines = [(0,3),(3,43),(4,43),(4,5),(43,44),(20,43),(20,21),(21,45),(21,46)]
-    #     self.neighbor_lines = [(0,3)]
-    #     self.generator = 45
-    #     self.active_injection_constraints = {}
-    #     self.reactive_injection_constraints = {}
-    #     self.line_constraints = {}
-    #     self.Y = pickle.load(open("Line_Ymatrix.pickle", "rb"))
-    #     allnodes = self.neighbors + self.nodes
-    # 
-    #     #construct map and matricies
-    #     for node in self.nodes:
-    #         if node != self.generator:
-    #             self.active_injection_constraints[node] = (0,0)
-    #             self.reactive_injection_constraints[node] = (0,0)
-    #         else:
-    #             self.active_injection_constraints[node] = (-100000, 100000)
-    #             self.reactive_injection_constraints[node] = (-100000, 100000)
-    # 
-    #     for line in self.lines:
-    #         self.line_constraints[line] = 1000000
 
-    # set constraints
+
+    def update_lambda(self, alpha, index_i, W_i, index_k, W_k):
+        lam = {}
+        # create a list of shared nodes
+        shared_nodes = []
+        for node in index_i:
+            if node in index_k:
+                shared_nodes += [node]
+
+        # check for edges
+        for i in shared_nodes:
+            for k in shared_nodes:
+                if (i,k) in self.lines:
+                    # if this is a line in the network, update the associated lambda
+                    print(f'W2 {W_i[index_i[i]][index_i[k]]}, W1 {W_k[index_k[i]][index_k[k]]}, differenc: {W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]]}')
+
+                    lam_ik = self.lam[(i,k)][0] + alpha * (W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]])
+                    lam_ki = self.lam[(i, k)][1] + alpha * (W_k[index_k[i]][index_k[k]] - W_i[index_i[i]][index_i[k]])
+                    self.lam[(i,k)] = (abs(lam_ik), abs(lam_ki))
+                    lam[(i,k)] = self.lam[(i,k)]
+                    #print(f'edge: {(i,k)}, lam: {lam[(i,k)]}')
+        return lam
 
     def set_lambda(self, key, value):
         self.lam[key] = value
@@ -156,7 +162,8 @@ class Algorithm():
         for node in self.nodes:
             f.append(cp.real(cp.trace(A[node]@W)))
         for line in self.neighbor_lines:
-            f.append(cp.real(self.lam[line][0]*(W[index[line[0]]][index[line[1]]]-W_shared[line][0]) + self.lam[line][1]*(W[index[line[0]]][index[line[1]]]-W_shared[line][1])))
+            print(self.lam[line][0],self.lam[line][1])
+            f.append(cp.real(cp.abs(self.lam[line][0]*(W[index[line[0]]][index[line[1]]]-W_shared[line][0])) + cp.abs(self.lam[line][1]*(W[index[line[0]]][index[line[1]]]-W_shared[line][1]))))
 
         prob = cp.Problem(cp.Minimize(sum(f)), constraints)
         # prob.solve(verbose=True)
@@ -171,61 +178,20 @@ class Algorithm():
 
         # Print result.
         print("The optimal value is", prob.value)
-        print("A solution W is")
-        print(W.value)
-
-        #
-        #
-        # prob.solve(solver=cp.COPT)
-        #
-        # # Print result.
-        # print("COPT")
-        # print("The optimal value is", prob.value)
-        # print("A solution W is")
-        # print(W.value)
-        #
-        # prob.solve(solver=cp.SDPA)
-        #
-        # # Print result.
-        # print("SDPA")
-        # print("The optimal value is", prob.value)
-        # print("A solution W is")
-        # print(W.value)
-        #
-        # prob.solve(solver=cp.SCS, max_iters=100, verbose=True)
-        #
-        # # Print result.
-        # print("SCS")
-        # print("The optimal value is", prob.value)
         # print("A solution W is")
         # print(W.value)
 
-        # prob.solve(solver=cp.SCS)
-        # # Print result.
-        # print("SCS")
-        # print("The optimal value is", prob.value)
-        # print("A solution W is")
-        # print(W.value)
-        # prob.solve(solver=cp.CVXOPT)
-        #
-        # # Print result.
-        # print("CVXOPT")
-        # print("The optimal value is", prob.value)
-        # print("A solution W is")
-        # print(W.value)
-
-
-
-        # for node in self.nodes:
-        #     print("-------------------------------")
-        #     print("node: ", node)
-        #     print("constraints")
-        #     print(self.active_injection_constraints[node][0])
-        #     print(self.active_injection_constraints[node][1])
-        #     print(self.reactive_injection_constraints[node][0])
-        #     print(self.reactive_injection_constraints[node][1])
-        #     print("active: ", np.trace(A[node] @ W.value))
-        #     print("reactive", np.trace(B[node]@W.value))
+        # Return W, and the power setpoints for each node
+        P = {}
+        Q = {}
+        for node in self.nodes:
+            P[node] = [np.real(np.trace(A[node] @ W.value))]
+            Q[node] = [np.real(np.trace(B[node] @ W.value))]
+            # print("----------------------")
+            # print("node: ", node)
+            # print("active: ", np.trace(A[node] @ W.value))
+            # print("reactive", np.trace(B[node]@W.value))
+        return (index, W.value, P, Q)
 
 
 
