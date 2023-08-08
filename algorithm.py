@@ -13,7 +13,7 @@ class Algorithm():
     """
 
     # Constructor for group 6
-    def __init__(self, nodes, neighbors, lines, neighbor_lines, generator,):
+    def __init__(self, nodes, neighbors, lines, neighbor_lines, generator):
         self.nodes = nodes
         self.neighbors = neighbors
         self.lines = lines
@@ -40,7 +40,16 @@ class Algorithm():
         for line in self.lines:
             self.line_constraints[line] = 100000
     
-    
+    def set_net_load(self, load_act, load_react, cap_act, cap_react):
+        # construct map and matricies
+        for node in self.nodes:
+            if node != self.generator:
+                self.active_injection_constraints[node] = (load_act[node],load_act[node])
+                self.reactive_injection_constraints[node] = (load_react[node],load_react[node])
+            else:
+                self.active_injection_constraints[node] = (load_act[node], load_act[node] + cap_act[node])
+                self.reactive_injection_constraints[node] = (load_react[node], load_react[node] + cap_react[node]))
+
     # def __init__(self):
     #     self.nodes = [3, 4, 5, 20, 21,43,44,45,46]
     #     self.neighbors = [0]
