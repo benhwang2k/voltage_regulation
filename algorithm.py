@@ -14,6 +14,7 @@ class Algorithm():
 
     # Constructor for group 6
     def __init__(self, nodes, neighbors, lines, neighbor_lines, generator):
+        self.solver = "MOSEK"
         self.nodes = nodes
         self.neighbors = neighbors
         self.lines = lines
@@ -25,7 +26,7 @@ class Algorithm():
 
         self.lam = {}
 
-        self.Y = pickle.load(open("Line_Ymatrix.pickle", "rb"))
+        self.Y = pickle.load(open("Line_Ymatrix.pickle", "rb")) * (12470.*12470./1000000.)
         allnodes = self.neighbors + self.nodes
 
         #construct map and matricies
@@ -38,25 +39,56 @@ class Algorithm():
                 self.reactive_injection_constraints[node] = (-100, 100)
 
         for line in self.lines:
-            self.line_constraints[line] = 100000
+            self.line_constraints[line] = 10000000
+
+        n = len(self.nodes) + len(self.neighbors)
+        buses = self.nodes + self.neighbors
+        # assign each node an self.index
+        self.index = {}
+        count = 0
+        for node in buses:
+            self.index[node] = count
+            count += 1
+        # construct matricies from the dictionary mapping two nodes to the bus admittance matrix entry
+        Y = np.array(np.zeros((n, n), dtype=complex))
+        for i in buses:
+            for k in buses:
+                Y[self.index[i]][self.index[k]] = self.Y[i][k]
+
+        # For each group node make Ai and Ai_til
+        self.A = {}
+        self.B = {}
+        for node in self.nodes:
+            E = np.array(np.zeros((n, n), dtype=complex))
+            E[self.index[node]][self.index[node]] = 1
+            A_temp = (0.5) * (np.transpose(np.conjugate(Y)) @ E + E @ Y)
+            B_temp = (1.0 / (2j)) * (np.transpose(np.conjugate(Y)) @ E - E @ Y)
+            self.A[node] = A_temp
+            self.B[node] = B_temp
+
+        # For each line make Aik
+        self.A_line = {}
+        for line in self.lines:
+            Yik = self.Y[line[0]][line[1]]
+            A_temp = np.array(np.zeros((n, n), dtype=complex))
+            for l in range(n):
+                for m in range(n):
+                    if l == m and m == self.index[line[1]]:
+                        A_temp[l][m] = np.real(Yik)
+                    elif l == self.index[line[1]] and m == k:
+                        A_temp[l][m] = (-Yik) / 2
+                    elif l == k and m == self.index[line[1]]:
+                        A_temp[l][m] = (-np.transpose(np.conjugate(Yik))) / 2
+                    else:
+                        A_temp[l][m] = 0
+            self.A_line[line] = A_temp
     
     def set_net_load(self, load_act, load_react, cap_act, cap_react):
         # construct map and matricies
         for node in self.nodes:
-            self.active_injection_constraints[node] = (-load_act[node], -load_act[node] + cap_act[node])
-            self.reactive_injection_constraints[node] = (-load_react[node], -load_react[node] + cap_react[node])
-            # print(f'node {node:d} has active capacity: ', self.active_injection_constraints[node])
-            # print(f'node {node:d} has reactive capacity: ', self.reactive_injection_constraints[node])
-            # if node != self.generator:
-            #     self.active_injection_constraints[node] = (-load_act[node],-load_act[node])
-            #     self.reactive_injection_constraints[node] = (-load_react[node],-load_react[node])
-            #     print(f'node {node:d} has active capacity: ', self.active_injection_constraints[node])
-            #     print(f'node {node:d} has reactive capacity: ', self.reactive_injection_constraints[node])
-            # else:
-            #     self.active_injection_constraints[node] = (-load_act[node], -load_act[node] + cap_act[node])
-            #     self.reactive_injection_constraints[node] = (-load_react[node], -load_react[node] + cap_react[node])
-            #     print(f'node {node:d} has active capacity: ', self.active_injection_constraints[node])
-            #     print(f'node {node:d} has reactive capacity: ', self.reactive_injection_constraints[node])
+            self.active_injection_constraints[node] = (load_act[node] - cap_act[node], load_act[node] + cap_act[node])
+            self.reactive_injection_constraints[node] = (load_react[node] - cap_react[node], load_react[node] + cap_react[node])
+
 
 
 
@@ -95,102 +127,75 @@ class Algorithm():
     def calculate_multi(self, v, W_shared):
         n = len(self.nodes) + len(self.neighbors)
         buses = self.nodes + self.neighbors
-        # assign each node an index
-        index = {}
-        count = 0
-        for node in buses:
-            index[node] = count
-            count += 1
-        # construct matricies from the dictionary mapping two nodes to the bus admittance matrix entry
-        Y = np.array(np.zeros((n,n),dtype=complex))
-        for i in buses:
-            for k in buses:
-                Y[index[i]][index[k]] = self.Y[i][k]
-
-        # For each group node make Ai and Ai_til
-        A = {}
-        B = {}
-        for node in self.nodes:
-            A_temp = np.array(np.zeros((n,n),dtype=complex))
-            E = np.array(np.zeros((n,n),dtype=complex))
-            E[index[node]][index[node]] = 1
-            A_temp = (0.5)*(np.transpose(np.conjugate(Y))@E + E@Y)
-            B_temp = (1.0/(2j)) * (np.transpose(np.conjugate(Y)) @ E - E @ Y)
-            A[node] = A_temp
-            B[node] = B_temp
-
-        # For each line make Aik
-        A_line = {}
-        for line in self.lines:
-            Yik = self.Y[line[0]][line[1]]
-            A_temp = np.array(np.zeros((n,n),dtype=complex))
-            for l in range(n):
-                for m in range(n):
-                    if l == m and m == index[line[1]]:
-                        A_temp[l][m] = np.real(Yik)
-                    elif l == index[line[1]] and m == k:
-                        A_temp[l][m] = (-Yik)/2
-                    elif l == k and m == index[line[1]]:
-                        A_temp[l][m] = (-np.transpose(np.conjugate(Yik)))/ 2
-                    else:
-                        A_temp[l][m] = 0
-            A_line[line] = A_temp
 
         # use (13) as the objective function and (12) as constraints without f, g
         W = cp.Variable((n, n), PSD=True)
 
-        constraints = [W >> 0]
+        constraints = []
 
         # This constrains the voltage at all buses even the neighbors
         for node in buses:
-            constraints += [(W[index[node]][index[node]] == v[node] * v[node])]
-
+            constraints += [(W[self.index[node]][self.index[node]] <= (v[node]+0.05) * (v[node]+0.05))]
+            constraints += [(W[self.index[node]][self.index[node]] >= (v[node]-0.05) * (v[node]-0.05))]
 
         # Only for the nodes that are in the group (i.e. not the neighbors) constrain the power injection
-        constraints += [(cp.real(cp.trace(A[node] @ W)) <= self.active_injection_constraints[node][1]) for node in self.nodes]
-        constraints += [(cp.real(cp.trace(A[node] @ W)) >= self.active_injection_constraints[node][0]) for node in self.nodes]
-        constraints += [(cp.real(cp.trace(B[node] @ W)) <= self.reactive_injection_constraints[node][1]) for node in self.nodes]
-        constraints += [(cp.real(cp.trace(B[node] @ W)) >= self.reactive_injection_constraints[node][0]) for node in self.nodes]
+        constraints += [(cp.real(cp.trace(self.A[node] @ W)) <= self.active_injection_constraints[node][1]) for node in self.nodes]
+        constraints += [(cp.real(cp.trace(self.A[node] @ W)) >= self.active_injection_constraints[node][0]) for node in self.nodes]
+        constraints += [(cp.real(cp.trace(self.B[node] @ W)) <= self.reactive_injection_constraints[node][1]) for node in self.nodes]
+        constraints += [(cp.real(cp.trace(self.B[node] @ W)) >= self.reactive_injection_constraints[node][0]) for node in self.nodes]
 
         # For all lines including neighbor lines constrain the power flow
-        for line in self.lines:
-            constraints += [(cp.abs(cp.trace(A_line[line] @ W)) <= self.line_constraints[line])]
+        # for line in self.lines:
+        #     constraints += [(cp.abs(cp.trace(self.A_line[line] @ W)) <= self.line_constraints[line])]
 
 
         # construct the objective function as per equations (13) from Alejandros paper mangled to fit (8)
         f = []
         for node in self.nodes:
-            f.append(cp.real(cp.trace(A[node]@W)))
+            f.append(cp.real(cp.trace(self.A[node]@W)))
         for line in self.neighbor_lines:
-            f.append(cp.real(cp.abs(self.lam[line][0]*(W[index[line[0]]][index[line[1]]]-W_shared[line][0])) + cp.abs(self.lam[line][1]*(W[index[line[0]]][index[line[1]]]-W_shared[line][1]))))
+            f.append(cp.real(cp.abs(self.lam[line][0]*(W[self.index[line[0]]][self.index[line[1]]]-W_shared[line][0])) + cp.abs(self.lam[line][1]*(W[self.index[line[0]]][self.index[line[1]]]-W_shared[line][1]))))
 
         prob = cp.Problem(cp.Minimize(sum(f)), constraints)
-        # prob.solve(verbose=True)
-        #
+
+
+        if self.solver == "SCS":
+            prob.solve(solver=cp.SCS)
+        else:
+            try:
+                prob.solve()
+            except cp.error.SolverError:
+                print("ERROR SOlving", self.generator)
+                return (self.index, None, [], [])
+
         # Print result.
         # print("The optimal value is", prob.value)
         # print("A solution W is")
         # print(W.value)
 
-
-        prob.solve()
-
-        # Print result.
-        # print("The optimal value is", prob.value)
-        # print("A solution W is")
-        # print(W.value)
+        # print metrics
+        # for node in self.nodes:
+        #     sat_act = (self.active_injection_constraints[node][0]<= np.real(np.trace(self.A[node] @ W.value))) and (self.active_injection_constraints[node][1]>= np.real(np.trace(self.A[node] @ W.value)))
+        #     sat_react = (self.reactive_injection_constraints[node][1] >= np.real(np.trace(self.B[node] @ W.value))) and  (self.reactive_injection_constraints[node][0] <= np.real(np.trace(self.B[node] @ W.value)))
+        #     #print(f"node: {node}, satisfied: {sat}, active inj: {np.real(np.trace(A[node] @ W.value))}, lower: {self.active_injection_constraints[node][0]} , upper: {self.active_injection_constraints[node][1]}")
+        #     if not (sat_act and sat_react):
+        #         print("-----------------")
+        #         print(f"node: {node}, active: {sat_act} , reactive: {sat_react}")
+        #         print(f"Constraints - active: ({self.active_injection_constraints[node][0]},{self.active_injection_constraints[node][1]}) | react: ({self.reactive_injection_constraints[node][0]},{self.reactive_injection_constraints[node][1]})")
+        #         print(f"values - active: {np.real(np.trace(self.A[node] @ W.value))} | reactive: {np.real(np.trace(self.B[node] @ W.value))}")
 
         # Return W, and the power setpoints for each node
         P = {}
         Q = {}
-        for node in self.nodes:
-            P[node] = [np.real(np.trace(A[node] @ W.value))]
-            Q[node] = [np.real(np.trace(B[node] @ W.value))]
-            # print("----------------------")
-            # print("node: ", node)
-            # print("active: ", np.trace(A[node] @ W.value))
-            # print("reactive", np.trace(B[node]@W.value))
-        return (index, W.value, P, Q)
+        if not (W.value is None):
+            for node in self.nodes:
+                P[node] = np.real(np.trace(self.A[node] @ W.value))
+                Q[node] = np.real(np.trace(self.B[node] @ W.value))
+                # print("----------------------")
+                # print("node: ", node)
+                # print("active: ", np.trace(A[node] @ W.value))
+                # print("reactive", np.trace(B[node]@W.value))
+        return (self.index, W.value, P, Q)
 
 
 

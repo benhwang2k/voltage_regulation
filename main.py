@@ -3,19 +3,10 @@ import numpy as np
 import time
 import pandas as pd
 
-# P_up = 100
-# P_low = -100
-# Q_up = 100
-# Q_low = -100
-# P_line = 100
-# v = np.array([[1],[1],[1]])
-# Y = np.array([[1j,2+2j,2+3j],[2+2j,2j,3+3j],[2+3j,3+3j,3j]])
-# alg = algorithm.Algorithm()
-# alg.set_power_constraints(P_up, P_low, Q_up, Q_low, P_line)
-# lam = np.array(np.zeros((3,3)))
-# alg.calculate(Y, v, lam)
-# print(alg)
+# Negtive injection means power output from the node
 
+
+tic = time.time()
 nodes = []
 v = {}
 for i in range(48):
@@ -23,36 +14,47 @@ for i in range(48):
     v[i] = 1.
 load_act = {0:0.}
 load_react = {0:0.}
-cap_act = {13:100000,15:100000,23:100000,37:100000,45:100000,47:100000}
-cap_react = {13:100000,15:100000,23:100000,37:100000,45:100000,47:100000}
+cap_act = {}
+cap_react = {}
 network_data = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx", sheet_name="Buses_new")
 table = network_data.to_numpy()
 
-batteries = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47]#[13,15,23,37,45,47]
+#batteries = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47]#[13,15,23,37,45,47]
+batteries = [47,23,37,15,13,45]
 
-battery_capacity = 10000  # number used for both kVA and kVAR
+battery_capacity = 1000000000  # number used for both kVA and kVAR
+
+other_capacity = 950. #
+
+base_power = 1000.
+
 
 for row in range(1,49):
     if table[row][1] == 0:
-        load_act[table[row][1]] = float(table[row][5])/67.000
-        load_react[table[row][1]] = float(table[row][6])/67.000
+        load_act[table[row][1]] = float(table[row][5])/base_power
+        load_react[table[row][1]] = float(table[row][6])/base_power
         if table[row][1] in batteries:
-            cap_act[table[row][1]] = battery_capacity/12.470
-            cap_react[table[row][1]] = battery_capacity/12.470
+            cap_act[table[row][1]] = battery_capacity/base_power
+            cap_react[table[row][1]] = battery_capacity/base_power
+        else:
+            cap_act[table[row][1]] = other_capacity / base_power
+            cap_react[table[row][1]] = other_capacity / base_power
     else:
-        load_act[table[row][1]] = float(table[row][5])/12.470
-        load_react[table[row][1]] = float(table[row][6])/12.470
+        load_act[table[row][1]] = float(table[row][5])/base_power
+        load_react[table[row][1]] = float(table[row][6])/base_power
         if table[row][1] in batteries:
-            cap_act[table[row][1]] = battery_capacity/12.470
-            cap_react[table[row][1]] = battery_capacity/12.470
+            cap_act[table[row][1]] = battery_capacity / base_power
+            cap_react[table[row][1]] = battery_capacity / base_power
+        else:
+            cap_act[table[row][1]] = other_capacity / base_power
+            cap_react[table[row][1]] = other_capacity / base_power
     if not np.isnan(table[row][9]):
-        load_act[table[row][1]] -= float(table[row][9])/12.470
+        load_act[table[row][1]] -= float(table[row][9])/base_power
 
 # Now load and capacity in per unit are initialized
 # 
 # for node in batteries:
 #     print(f'node {node} cap {cap_act[node]}')
-
 
 
 #setup the groups and run the optimizations
@@ -61,7 +63,7 @@ group1 = algorithm.Algorithm(nodes=[7,8,31,33,32,47], neighbors=[6], lines= [(6,
 W_shared = {}
 for line in group1.neighbor_lines:
     group1.set_lambda(line,(0,0))
-    W_shared[line] = (0,0)
+    W_shared[line] = (1,1)
 group1.set_net_load(load_act, load_react, cap_act, cap_react)
 (index_1, W_1, P_1, Q_1) = group1.calculate_multi(v, W_shared)
 
@@ -71,7 +73,7 @@ group2 = algorithm.Algorithm(nodes=[1,6,9,10,22,23,24], neighbors=[0,7,8,25,26,2
 W_shared = {}
 for line in group2.neighbor_lines:
     group2.set_lambda(line,(0,0))
-    W_shared[line] = (0, 0)
+    W_shared[line] = (1,1)
 group2.set_net_load(load_act, load_react, cap_act, cap_react)
 (index_2, W_2, P_2, Q_2) = group2.calculate_multi(v, W_shared)
 
@@ -80,7 +82,7 @@ group3 = algorithm.Algorithm(nodes=[25,26,27,35,36,37,38,39,40], neighbors=[10],
 W_shared = {}
 for line in group3.neighbor_lines:
     group3.set_lambda(line,(0,0))
-    W_shared[line] = (0, 0)
+    W_shared[line] = (1,1)
 group3.set_net_load(load_act, load_react, cap_act, cap_react)
 (index_3, W_3, P_3, Q_3) = group3.calculate_multi(v, W_shared)
 
@@ -89,7 +91,7 @@ group4 = algorithm.Algorithm(nodes=[0,2,14,15,16,17,18,19,41], neighbors=[1,3,28
 W_shared = {}
 for line in group4.neighbor_lines:
     group4.set_lambda(line,(0,0))
-    W_shared[line] = (0, 0)
+    W_shared[line] = (1,1)
 group4.set_net_load(load_act, load_react, cap_act, cap_react)
 (index_4, W_4, P_4, Q_4) = group4.calculate_multi(v, W_shared)
 
@@ -97,7 +99,7 @@ group5 = algorithm.Algorithm(nodes=[11,12,13,28,29,30,34,42], neighbors=[41], li
 W_shared = {}
 for line in group5.neighbor_lines:
     group5.set_lambda(line,(0,0))
-    W_shared[line] = (0, 0)
+    W_shared[line] = (1,1)
 group5.set_net_load(load_act, load_react, cap_act, cap_react)
 (index_5, W_5, P_5, Q_5) = group5.calculate_multi(v, W_shared)
 
@@ -105,10 +107,9 @@ group6 = algorithm.Algorithm(nodes = [3, 4, 5, 20, 21,43,44,45,46],neighbors = [
 W_shared = {}
 for line in group6.neighbor_lines:
     group6.set_lambda(line,(0,0))
-    W_shared[line] = (0, 0)
+    W_shared[line] = (1,1)
 group6.set_net_load(load_act, load_react, cap_act, cap_react)
 (index_6, W_6, P_6, Q_6) = group6.calculate_multi(v, W_shared)
-
 
 # update lambdas
 alpha = 100.
@@ -119,15 +120,56 @@ group6.lam = group4.update_lambda( alpha, index_4, W_4, index_6, W_6)
 group4.update_lambda( alpha, index_4, W_4, index_2, W_2)
 group2.update_lambda( alpha, index_2, W_2, index_4, W_4)
 
+
+
 # Write a loop to iterate
-for t in range(100):
+t = 0
+dec = False
+while t < 100:
+    t += 1
+    # if True:
+    #     other_capacity /= 2
+    # dec = True
+    # print(other_capacity)
+    # # if other_capacity < 930:
+    # #     group1.solver = "SCS"
+    # #     group2.solver = "SCS"
+    # #     group3.solver = "SCS"
+    # #     group4.solver = "SCS"
+    # #     group5.solver = "SCS"
+    # #     group6.solver = "SCS"
+
+    # cap_act = {}
+    # cap_react = {}
+    # for node in range(48):
+    #     if node in batteries:
+    #         cap_act[node] = battery_capacity / base_power
+    #         cap_react[node] = battery_capacity / base_power
+    #     else:
+    #         cap_act[node] = other_capacity / base_power
+    #         cap_react[node] = other_capacity / base_power
+    #
+    # group1.set_net_load(load_act, load_react, cap_act, cap_react)
+    # group2.set_net_load(load_act, load_react, cap_act, cap_react)
+    # group3.set_net_load(load_act, load_react, cap_act, cap_react)
+    # group4.set_net_load(load_act, load_react, cap_act, cap_react)
+    # group5.set_net_load(load_act, load_react, cap_act, cap_react)
+    # group6.set_net_load(load_act, load_react, cap_act, cap_react)
+
     print("----------------------")
     print("t: ", t)
     # GROUP 1
     W_shared = {}
     for line in group1.neighbor_lines:
         W_shared[line] = (W_2[index_2[line[0]]][index_2[line[1]]], W_2[index_2[line[1]]][index_2[line[0]]])
-    (index_1, W_1, P_1, Q_1) = group1.calculate_multi(v, W_shared)
+    (index_1, W_1_test, P_1, Q_1) = group1.calculate_multi(v, W_shared)
+    if not (W_1_test is None):
+        W_1 = W_1_test
+        dec = dec & True
+    else:
+        print("1 failed")
+        dec = False
+
 
     # GROUP 2
     W_shared = {}
@@ -138,13 +180,27 @@ for t in range(100):
             W_shared[line] = (W_3[index_3[line[0]]][index_3[line[1]]], W_3[index_3[line[1]]][index_3[line[0]]])
         elif line in group4.neighbor_lines:
             W_shared[line] = (W_4[index_4[line[0]]][index_4[line[1]]], W_4[index_4[line[1]]][index_4[line[0]]])
-    (index_2, W_2, P_2, Q_2) = group2.calculate_multi(v, W_shared)
+    (index_2, W_2_test, P_2, Q_2) = group2.calculate_multi(v, W_shared)
+    if not (W_2_test is None):
+        W_2 = W_2_test
+        dec = dec & True
+    else:
+        W_2 = np.array(np.ones((13,13)))
+        print("2 failed")
+        dec = False
 
     # GROUP 3
     W_shared = {}
     for line in group3.neighbor_lines:
         W_shared[line] = (W_2[index_2[line[0]]][index_2[line[1]]], W_2[index_2[line[1]]][index_2[line[0]]])
-    (index_3, W_3, P_3, Q_3) = group3.calculate_multi(v, W_shared)
+    (index_3, W_3_test, P_3, Q_3) = group3.calculate_multi(v, W_shared)
+    if not (W_3_test is None):
+        W_3 = W_3_test
+        dec = dec & True
+        print("3 suceed")
+    else:
+        print("3 failed")
+        dec = False
 
     # GROUP 4
 
@@ -156,19 +212,37 @@ for t in range(100):
             W_shared[line] = (W_6[index_6[line[0]]][index_6[line[1]]], W_6[index_6[line[1]]][index_6[line[0]]])
         elif line in group2.neighbor_lines:
             W_shared[line] = (W_2[index_2[line[0]]][index_2[line[1]]], W_2[index_2[line[1]]][index_2[line[0]]])
-    (index_4, W_4, P_4, Q_4) = group4.calculate_multi(v, W_shared)
+    (index_4, W_4_test, P_4, Q_4) = group4.calculate_multi(v, W_shared)
+    if not (W_4_test is None):
+        W_4 = W_4_test
+        dec = dec & True
+    else:
+        print("4 failed")
+        dec = False
 
     # GROUP 5
     W_shared = {}
     for line in group5.neighbor_lines:
         W_shared[line] = (W_4[index_4[line[0]]][index_4[line[1]]], W_4[index_4[line[1]]][index_4[line[0]]])
-    (index_5, W_5, P_5, Q_5) = group5.calculate_multi(v, W_shared)
+    (index_5, W_5_test, P_5, Q_5) = group5.calculate_multi(v, W_shared)
+    if not (W_5_test is None):
+        W_5 = W_5_test
+        dec = dec & True
+    else:
+        print("5 failed")
+        dec = False
 
     # GROUP 6
     W_shared = {}
     for line in group6.neighbor_lines:
         W_shared[line] = (W_4[index_4[line[0]]][index_4[line[1]]], W_4[index_4[line[1]]][index_4[line[0]]])
-    (index_6, W_6, P_6, Q_6) = group6.calculate_multi(v, W_shared)
+    (index_6, W_6_test, P_6, Q_6) = group6.calculate_multi(v, W_shared)
+    if not (W_6_test is None):
+        W_6 = W_6_test
+        dec = dec & True
+    else:
+        print("6 failed")
+        dec = False
 
     group1.lam = group2.update_lambda(alpha, index_2, W_2, index_1, W_1)
     group3.lam = group2.update_lambda(alpha, index_2, W_2, index_3, W_3)
@@ -178,13 +252,16 @@ for t in range(100):
     group2.update_lambda(alpha, index_2, W_2, index_4, W_4)
 
 
-print("P1: ", P_1)
-print("P2: ", P_2)
-print("P3: ", P_3)
-print("P4: ", P_4)
-print("P5: ", P_5)
-print("P6: ", P_6)
+active_power_inj = [P_1, P_2, P_3, P_4, P_5, P_6]
+reactive_power_inj = [Q_1, Q_2, Q_3, Q_4, Q_5, Q_6]
+for group in range(6):
+    for node in active_power_inj[group]:
+        print(f"node: {node} | active power injection: {active_power_inj[group][node]-load_act[node]}")
 
+for group in range(6):
+    for node in reactive_power_inj[group]:
+        print(f"node: {node} | reactive power injection: {reactive_power_inj[group][node]-load_react[node]}")
+print("time elapsed: ",time.time() - tic)
 
 
 
