@@ -29,7 +29,7 @@ class Algorithm():
         self.Y = pickle.load(open("Line_Ymatrix.pickle", "rb")) * (12470.*12470./1000000.)
         allnodes = self.neighbors + self.nodes
 
-        #construct map and matricies
+        # initialze constraints
         for node in self.nodes:
             if node != self.generator:
                 self.active_injection_constraints[node] = (0,0)
@@ -41,6 +41,9 @@ class Algorithm():
         for line in self.lines:
             self.line_constraints[line] = 10000000
 
+
+        # Construct A_i for each node i in the group
+        # also Construct A_ik for each line (i,k) in the group
         n = len(self.nodes) + len(self.neighbors)
         buses = self.nodes + self.neighbors
         # assign each node an self.index
@@ -55,7 +58,7 @@ class Algorithm():
             for k in buses:
                 Y[self.index[i]][self.index[k]] = self.Y[i][k]
 
-        # For each group node make Ai and Ai_til
+        # Fmake Ai
         self.A = {}
         self.B = {}
         for node in self.nodes:
@@ -125,12 +128,16 @@ class Algorithm():
         self.P_line = P_line
 
     def calculate_multi(self, v, W_shared):
+        # n is the total number of buses including neighbors -> buses
         n = len(self.nodes) + len(self.neighbors)
         buses = self.nodes + self.neighbors
 
         # use (13) as the objective function and (12) as constraints without f, g
+
+        # optimization variable is n by b and a positive semi definite
         W = cp.Variable((n, n), PSD=True)
 
+        # list of constraints
         constraints = []
 
         # This constrains the voltage at all buses even the neighbors
@@ -138,7 +145,7 @@ class Algorithm():
             constraints += [(W[self.index[node]][self.index[node]] <= (v[node]+0.05) * (v[node]+0.05))]
             constraints += [(W[self.index[node]][self.index[node]] >= (v[node]-0.05) * (v[node]-0.05))]
 
-        # Only for the nodes that are in the group (i.e. not the neighbors) constrain the power injection
+        #constrain the power injection Only for the nodes that are in the group (i.e. not the neighbors)
         constraints += [(cp.real(cp.trace(self.A[node] @ W)) <= self.active_injection_constraints[node][1]) for node in self.nodes]
         constraints += [(cp.real(cp.trace(self.A[node] @ W)) >= self.active_injection_constraints[node][0]) for node in self.nodes]
         constraints += [(cp.real(cp.trace(self.B[node] @ W)) <= self.reactive_injection_constraints[node][1]) for node in self.nodes]
@@ -159,6 +166,9 @@ class Algorithm():
         prob = cp.Problem(cp.Minimize(sum(f)), constraints)
 
 
+
+        # SOLVE!!!!!!! if you have Mosek installed the  it will use that as default.
+        # Can use "prob.solve(verbose = True)" to see more stuff
         if self.solver == "SCS":
             prob.solve(solver=cp.SCS)
         else:

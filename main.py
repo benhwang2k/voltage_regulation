@@ -5,30 +5,40 @@ import pandas as pd
 
 # Negtive injection means power output from the node
 
-
+# record time elapsed
 tic = time.time()
-nodes = []
-v = {}
+
+
+nodes = [] # collect all nodes in the network
+v = {}  # dicitonary of refrence voltages mapped from bus numbers
 for i in range(48):
     nodes += [i]
     v[i] = 1.
+
+# The following dictionaries map bus numbers to net load (active and reactive)
 load_act = {0:0.}
 load_react = {0:0.}
 cap_act = {}
 cap_react = {}
+
+# read network data from files
 network_data = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx", sheet_name="Buses_new")
 table = network_data.to_numpy()
 
+
+# This is the list of busses that have capacity for generation
 #batteries = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47]#[13,15,23,37,45,47]
 batteries = [47,23,37,15,13,45]
 
-battery_capacity = 1000000000  # number used for both kVA and kVAR
+battery_capacity = 1000000000  # number used for both kVA and kVAR (the capacity indicates the upper and lower injection bounds as (nom -cap, nom + cap)
 
-other_capacity = 950. #
+# capacity for non battery buses.
+other_capacity = 950.
 
+# base power used in per unit calculations
 base_power = 1000.
 
-
+# This block of code fills in the nominal loads, and capacities at each bus into the dictionaries
 for row in range(1,49):
     if table[row][1] == 0:
         load_act[table[row][1]] = float(table[row][5])/base_power
@@ -52,19 +62,34 @@ for row in range(1,49):
         load_act[table[row][1]] -= float(table[row][9])/base_power
 
 # Now load and capacity in per unit are initialized
-# 
+
+
 # for node in batteries:
 #     print(f'node {node} cap {cap_act[node]}')
 
 
 #setup the groups and run the optimizations
 
+# nodes are internal nodes only, neighbors are nodes in other groups, lines contains all lines (even neighbors lines)
+# neighborlines specifies which lines have associated lambdas, generator indicated which bus the battery is at
 group1 = algorithm.Algorithm(nodes=[7,8,31,33,32,47], neighbors=[6], lines= [(6,7),(6,8),(7,31),(7,32),(7,33),(33,47)], neighbor_lines=[(6,7),(6,8)], generator = 47)
+
+# W_shared records the neighborign entries of W. (i.e. W superscript(neighbor group))
+# keys for this dictionary are lines , and map to entries of the neighbor group's optimal W
 W_shared = {}
 for line in group1.neighbor_lines:
-    group1.set_lambda(line,(0,0))
-    W_shared[line] = (1,1)
+    group1.set_lambda(line,(0,0)) # initailze lambda
+    W_shared[line] = (1,1) # initialize to some number (1)
+
+# set bounds on power injection
 group1.set_net_load(load_act, load_react, cap_act, cap_react)
+
+# RUN THE OPTIMIZATION:
+# inputs are the target voltages at each bus and the necesary neighbor W entries
+# ouputs are an indexing dictionary (key: bus number, value: index in the matrix W_1),
+#       W_1 is the optimal solution (symmetric matrix of squared voltages)
+#       P_1, Q_1 are the active and reactive power injections at nodes, access these useing P[index[node]]
+
 (index_1, W_1, P_1, Q_1) = group1.calculate_multi(v, W_shared)
 
 
