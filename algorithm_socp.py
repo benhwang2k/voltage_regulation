@@ -51,12 +51,51 @@ class Algorithm():
             # print(f"Z = {self.r[i][i]} + i{self.x[i][i]}")
             # print(f"Y = {self.g[i]} + i{self.b[i]}")
 
+            # lagrangian multipliers
+            self.lam_active = {}
+            self.lam_reactive = {}
+            self.shared_active = {}
+            self.shared_reactive = {}
+            self.flow_active = {}
+            self.flow_reactive = {}
+            for line in self.neighbor_lines:
+                self.flow_reactive[line] = 0
+                self.flow_active[line] = 0
+                self.lam_active[line] = 0
+                self.lam_reactive[line] = 0
+                self.shared_active[line] = 0
+                self.shared_reactive[line] = 0
+
+    def update_shared_powers(self, shared_active, shared_reactive):
+        for line in shared_active:
+            self.shared_active[line] = shared_active[line]
+            self.shared_reactive[line] = shared_reactive[line]
+
+    def update_lam(self, alpha):
+        for line in self.neighbor_lines:
+            self.lam_active[line] += alpha * (self.flow_active[line] - self.shared_active[line])
+            self.lam_reactive[line] += alpha * (self.flow_reactive[line] - self.shared_reactive[line])
+            if line == (0,1) :
+                print(f"line {line} has calculated active power : {self.flow_active[line]} and {self.shared_active[line]}, difference = {self.flow_active[line] - self.shared_active[line]}")
+                #print(f"line {line} has calculated reactive power : {self.flow_reactive[line]} and {self.shared_reactive[line]}, difference = {self.flow_reactive[line] - self.shared_reactive[line]}")
+
+    def set_lam(self, other_lam_active, other_lam_reactive):
+        for key in self.lam_active:
+            self.lam_active[key] = other_lam_active[key]
+            self.lam_reactive[key] = other_lam_reactive[key]
 
     def set_net_load(self, load_act, load_react):
         self.load_act = load_act
         self.load_react = load_react
 
-
+    def print_params(self):
+        for line in self.neighbor_lines:
+            print(f"active power in line {line} is {self.flow_active[line]}")
+            print(f"shared active power in line {line} is {self.shared_active[line]}")
+            print(f"lambda active power in line {line} is {self.lam_active[line]}")
+            print(f"reactive power in line {line} is {self.flow_reactive[line]}")
+            print(f"shared reactive power in line {line} is {self.shared_reactive[line]}")
+            print(f"lambda reactive power in line {line} is {self.lam_reactive[line]}")
 
 
     def calculate_multi(self):
@@ -87,8 +126,8 @@ class Algorithm():
 
         for i in buses:
             V[i] = cp.Variable()
-            constraints += [V[i] >= 0.85]
-            constraints += [V[i] <= 1.15]
+            constraints += [V[i] >= 0.5]
+            constraints += [V[i] <= 1.5]
 
         for line in self.lines:
             I[line] = cp.Variable()
@@ -162,30 +201,44 @@ class Algorithm():
             constraints += [cp.PowCone3D(Velem[line[0]], Ielem[line], z[line], 0.5)]
             constraints += [cp.SOC(z[line], pq[line])]
 
+        f_obj = []
+        f_obj += [p_gen + 1000*(sum(vn_vio.values()) + sum(vp_vio.values())+ sum(pp_vio.values())+ sum(qp_vio.values())+ sum(pn_vio.values())+ sum(qn_vio.values()))]
 
 
-        prob = cp.Problem(cp.Minimize(p_gen + 1000*(sum(vn_vio.values()) + sum(vp_vio.values())+ sum(pp_vio.values())+ sum(qp_vio.values())+ sum(pn_vio.values())+ sum(qn_vio.values()))), constraints)
+        for line in self.neighbor_lines:
+            f_obj += [self.lam_active[line] * (Pij[line] - self.shared_active[line])]
+            f_obj += [self.lam_reactive[line] * (Qij[line] - self.shared_reactive[line])]
+
+        prob = cp.Problem(cp.Minimize(sum(f_obj)), constraints)
         prob.solve(verbose=False)
 
-        print(f"pgen : {p_gen.value}")
-        print(f"qgen : {q_gen.value}")
+        # print(f"pgen : {p_gen.value}")
+        # print(f"qgen : {q_gen.value}")
 
-        for node in V:
-            print(f"voltage at node: {node} = {V[node].value}")
+        # for node in V:
+        #     print(f"voltage at node: {node} = {V[node].value}")
+        #
+        # for key in pp_vio:
+        #     print(f"ppvio node: {key} : {pp_vio[key].value}")
+        # for key in pn_vio:
+        #     print(f"pnvio node: {key} : {pn_vio[key].value}")
+        # for key in qp_vio:
+        #     print(f"qpvio node: {key} : {qp_vio[key].value}")
+        # for key in qn_vio:
+        #     print(f"qnvio node: {key} : {qn_vio[key].value}")
+        # for key in vp_vio:
+        #     print(f"vpvio node: {key} : {vp_vio[key].value}")
+        # for key in vn_vio:
+        #     print(f"vnvio node: {key} : {vn_vio[key].value}")
 
-        for key in pp_vio:
-            print(f"ppvio node: {key} : {pp_vio[key].value}")
-        for key in pn_vio:
-            print(f"pnvio node: {key} : {pn_vio[key].value}")
-        for key in qp_vio:
-            print(f"qpvio node: {key} : {qp_vio[key].value}")
-        for key in qn_vio:
-            print(f"qnvio node: {key} : {qn_vio[key].value}")
-        for key in vp_vio:
-            print(f"vpvio node: {key} : {vp_vio[key].value}")
-        for key in vn_vio:
-            print(f"vnvio node: {key} : {vn_vio[key].value}")
+        shared_active = {}
+        shared_reactive = {}
+        for line in self.neighbor_lines:
+            shared_active[line] = Pij[line].value
+            self.flow_active[line] = Pij[line].value
+            shared_reactive[line] = Qij[line].value
+            self.flow_reactive[line] = Qij[line].value
 
-
+        return (shared_active, shared_reactive)
 
 
