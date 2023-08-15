@@ -74,9 +74,10 @@ Qij = {}
 
 # Voltage decision variables and constraints
 for i in buses:
-    V[i] = cp.Variable()
-    constraints += [V[i] >= 0.91]
-    constraints += [V[i] <= 1.1]
+    if i not in generators:
+        V[i] = cp.Variable()
+        constraints += [V[i] >= 0.91]
+        constraints += [V[i] <= 1.1]
 
 # Current decision variables
 for line in lines:
