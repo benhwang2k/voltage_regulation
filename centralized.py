@@ -25,7 +25,7 @@ for i in buses:
 network = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx",
                         sheet_name="Branches_new").to_numpy()
 lines = [(int(network[i][0]), int(network[i][1]))
-         for i in range(1, len(network))]
+         for i in range(len(network))]
 
 Y = np.array(pickle.load(
     open("Line_Ymatrix.pickle", "rb")
@@ -68,7 +68,7 @@ V = [1]*n
 # Currents squared
 I = {}
 
-# Power flows on lines
+# Power flows on line
 Pij = {}
 Qij = {}
 
@@ -96,7 +96,7 @@ for i in buses:
         if i == line[0]:
             Pij_out += Pij[line]
             Qij_out += Qij[line]
-        if i == line[1]:
+        elif i == line[1]:
             Pij_in += Pij[line] - r[line[0]][line[1]] * I[line]
             Qij_in += Qij[line] - x[line[0]][line[1]] * I[line]
 
