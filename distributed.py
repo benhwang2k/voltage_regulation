@@ -27,8 +27,8 @@ scale = 1000.0
 loads = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx",
                       sheet_name="Buses_new").to_numpy()
 
-P = [0]*n
-Q = [0]*n
+P = [0.]*n
+Q = [0.]*n
 for i in buses:
     P[loads[i+1][1]] = float(loads[i+1][5])/scale
     Q[loads[i+1][1]] = float(loads[i+1][6])/scale
@@ -65,16 +65,16 @@ for i in buses:
     b[i] = -np.imag(y)
 
 
+alpha_P = 0.00003
+alpha_Q = 0.00003
+alpha_I = 1e-11
+alpha_V = 0.00005
+
+
 class Algorithm():
     """
-    This is the base functions needed for most algorithms
-
-    Communication
-    Topology
-    Logging
     """
 
-    # Constructor for group 6
     def __init__(self, group, buses):
         self.group = group
         self.buses = buses
@@ -94,7 +94,7 @@ class Algorithm():
         # before and after solving the model
 
         # Voltage squared
-        self.V = [1]*48
+        self.V = [1.]*48
 
         # Current squared
         self.I = {}
@@ -104,8 +104,8 @@ class Algorithm():
         self.Qij = {}
 
         # Power generation
-        self.p_gen = [0]*48
-        self.q_gen = [0]*48
+        self.p_gen = [0.]*48
+        self.q_gen = [0.]*48
 
         # Lagrangian multipliers
         self.lam_P = {}
@@ -176,7 +176,7 @@ class Algorithm():
                 self.V[line[1]] == self.V[line[0]]
                 - 2 * (r_l * self.Pij[line] + x_l * self.Qij[line])
                 + (r_l*r_l + x_l*x_l) * self.I[line]
-               ]
+            ]
 
             # Slack variable for constraint VI <= P^2 + Q^2
             self.z[line] = cp.Variable(1)
@@ -187,13 +187,13 @@ class Algorithm():
                 cp.vstack([self.I[line]])[0],
                 self.z[line],
                 0.5
-               )]
+            )]
 
             # ||[P;Q]||_2 <= z
             constraints += [cp.SOC(
                 self.z[line],
                 cp.vstack([self.Pij[line], self.Qij[line]])
-               )]
+            )]
 
         f_obj = sum(self.p_gen)
 
@@ -201,22 +201,44 @@ class Algorithm():
             self.lam_P[line] = cp.Parameter(value=0)
             self.lam_Q[line] = cp.Parameter(value=0)
             self.lam_I[line] = cp.Parameter(value=0)
-            self.lam_V[line] = cp.Parameter(value=0)
+            self.lam_V[line[0]] = cp.Parameter(value=0)
+            self.lam_V[line[1]] = cp.Parameter(value=0)
             self.P_shr[line] = cp.Parameter(value=0)
             self.Q_shr[line] = cp.Parameter(value=0)
             self.I_shr[line] = cp.Parameter(value=0)
-            self.V_shr[line] = cp.Parameter(value=0)
+            self.V_shr[line[0]] = cp.Parameter(value=0)
+            self.V_shr[line[1]] = cp.Parameter(value=0)
             lambdas = [
                 self.lam_P[line] * (self.Pij[line] - self.P_shr[line]),
-                self.lam_Q[line] * (self.Qij[line] - self.Q_shr[line]).
+                self.lam_Q[line] * (self.Qij[line] - self.Q_shr[line]),
                 self.lam_I[line] * (self.I[line] - self.I_shr[line]),
                 self.lam_V[line[0]] * (self.V[line[0]] - self.V_shr[line[0]]),
                 self.lam_V[line[1]] * (self.V[line[1]] - self.V_shr[line[1]]),
-               ]
+            ]
 
             f_obj += sum(lambdas)
 
         self.prob = cp.Problem(cp.Minimize(f_obj), constraints)
+
+    def update_lambdas(self, neighbors):
+        for line in self.neighbor_lines:
+            for neighbor in neighbors:
+                if line not in neighbor.lines:
+                    continue
+
+                # This ensures the lagrange multipliers are calculated
+                # with correct sign between neighboring nodes
+
+                self.lam_P[line].value += alpha_P * (self.Pij[line].value - neighbor.Pij[line].value)
+                self.P_shr[line] = neighbor.Pij[line].value
+                self.lam_Q[line].value += alpha_Q * (self.Qij[line].value - neighbor.Qij[line].value)
+                self.Q_shr[line] = neighbor.Qij[line].value
+                self.lam_I[line].value += alpha_I * (self.I[line].value - neighbor.I[line].value)
+                self.I_shr[line] = neighbor.I[line].value
+                self.lam_V[line[0]].value += alpha_V * (self.V[line[0]].value - neighbor.V[line[1]].value)
+                self.lam_V[line[1]].value += alpha_V * (self.V[line[1]].value - neighbor.V[line[0]].value)
+                self.V_shr[line[0]] = neighbor.V[line[0]].value
+                self.V_shr[line[1]] = neighbor.V[line[1]].value
 
     def solve(self):
         self.prob.solve(
@@ -225,7 +247,6 @@ class Algorithm():
             mosek_params={'MSK_DPAR_INTPNT_CO_TOL_REL_GAP': 1e-6}
         )
 
-        print(f"Total generation in group {self.group}: {self.prob.objective.value}")
 
 
 def test_centralized():
@@ -235,10 +256,25 @@ def test_centralized():
 
     group_all.solve()
 
+    print(f"Total generation: {group_all.prob.objective.value}")
 
-group = [None]*6
-for i in range(6):
+    return group_all
+
+
+group = [None]*N
+for i in range(N):
     group[i] = Algorithm(
         group=i,
         buses=bus_groups[i],
     )
+
+    group[i].build()
+
+for t in range(200):
+    for i in range(N):
+        group[i].solve()
+
+    for i in range(N):
+        group[i].update_lambdas(group)
+
+    print(f"Iteration: {t}, ", [round(g.prob.objective.value,2) for g in group], end='\r')
