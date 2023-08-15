@@ -229,8 +229,11 @@ class Algorithm():
                 if line not in neighbor.lines:
                     continue
 
-                # This ensures the lagrange multipliers are calculated
-                # with correct sign between neighboring nodes
+                # The lam_X_shr parameters hold the value of
+                # lam_X*X_shr.  This is done to comply with the
+                # disciplined parameterized program (DPP) which is
+                # required for CVX to cache the program structure
+                # between solves.
 
                 self.lam_P[line].value += alpha_P * (self.Pij[line].value - neighbor.Pij[line].value)
                 self.lam_P_shr[line] = self.lam_P[line]*neighbor.Pij[line].value
