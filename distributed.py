@@ -4,6 +4,8 @@ import pickle
 import pandas as pd
 import mosek # this import is unused, but mosek needs to be installed
 
+DEBUG = False
+
 n = 48
 buses = list(range(n))
 
@@ -114,18 +116,19 @@ class Algorithm():
         self.lam_V = {}
 
         # Shared (coupled) state
-        self.P_shr = {}
-        self.Q_shr = {}
-        self.I_shr = {}
-        self.V_shr = {}
+        self.lam_P_shr = {}
+        self.lam_Q_shr = {}
+        self.lam_I_shr = {}
+        self.lam_V_shr = {}
 
-        print(
-            f"Initialized group {self.group} with\n",
-            f"Buses: {self.buses}\n",
-            f"Lines: {self.lines}\n",
-            f"Neighbors: {self.neighbors}\n",
-            f"Neighbor lines: {self.neighbor_lines}\n",
-        )
+        if DEBUG:
+            print(
+                f"Initialized group {self.group} with\n",
+                f"Buses: {self.buses}\n",
+                f"Lines: {self.lines}\n",
+                f"Neighbors: {self.neighbors}\n",
+                f"Neighbor lines: {self.neighbor_lines}\n",
+            )
 
     def build(self):
         constraints = []
@@ -203,17 +206,17 @@ class Algorithm():
             self.lam_I[line] = cp.Parameter(value=0)
             self.lam_V[line[0]] = cp.Parameter(value=0)
             self.lam_V[line[1]] = cp.Parameter(value=0)
-            self.P_shr[line] = cp.Parameter(value=0)
-            self.Q_shr[line] = cp.Parameter(value=0)
-            self.I_shr[line] = cp.Parameter(value=0)
-            self.V_shr[line[0]] = cp.Parameter(value=0)
-            self.V_shr[line[1]] = cp.Parameter(value=0)
+            self.lam_P_shr[line] = cp.Parameter(value=0)
+            self.lam_Q_shr[line] = cp.Parameter(value=0)
+            self.lam_I_shr[line] = cp.Parameter(value=0)
+            self.lam_V_shr[line[0]] = cp.Parameter(value=0)
+            self.lam_V_shr[line[1]] = cp.Parameter(value=0)
             lambdas = [
-                self.lam_P[line] * (self.Pij[line] - self.P_shr[line]),
-                self.lam_Q[line] * (self.Qij[line] - self.Q_shr[line]),
-                self.lam_I[line] * (self.I[line] - self.I_shr[line]),
-                self.lam_V[line[0]] * (self.V[line[0]] - self.V_shr[line[0]]),
-                self.lam_V[line[1]] * (self.V[line[1]] - self.V_shr[line[1]]),
+                self.lam_P[line] * self.Pij[line] - self.lam_P_shr[line],
+                self.lam_Q[line] * self.Qij[line] - self.lam_Q_shr[line],
+                self.lam_I[line] * self.I[line] - self.lam_I_shr[line],
+                self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_shr[line[0]],
+                self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_shr[line[1]],
             ]
 
             f_obj += sum(lambdas)
@@ -230,15 +233,15 @@ class Algorithm():
                 # with correct sign between neighboring nodes
 
                 self.lam_P[line].value += alpha_P * (self.Pij[line].value - neighbor.Pij[line].value)
-                self.P_shr[line] = neighbor.Pij[line].value
+                self.lam_P_shr[line] = self.lam_P[line]*neighbor.Pij[line].value
                 self.lam_Q[line].value += alpha_Q * (self.Qij[line].value - neighbor.Qij[line].value)
-                self.Q_shr[line] = neighbor.Qij[line].value
+                self.lam_Q_shr[line] = self.lam_Q[line]*neighbor.Qij[line].value
                 self.lam_I[line].value += alpha_I * (self.I[line].value - neighbor.I[line].value)
-                self.I_shr[line] = neighbor.I[line].value
+                self.lam_I_shr[line] = self.lam_I[line]*neighbor.I[line].value
                 self.lam_V[line[0]].value += alpha_V * (self.V[line[0]].value - neighbor.V[line[1]].value)
                 self.lam_V[line[1]].value += alpha_V * (self.V[line[1]].value - neighbor.V[line[0]].value)
-                self.V_shr[line[0]] = neighbor.V[line[0]].value
-                self.V_shr[line[1]] = neighbor.V[line[1]].value
+                self.lam_V_shr[line[0]] = self.lam_V[line[0]].value*neighbor.V[line[0]].value
+                self.lam_V_shr[line[1]] = self.lam_V[line[1]].value*neighbor.V[line[1]].value
 
     def solve(self):
         self.prob.solve(
@@ -246,7 +249,6 @@ class Algorithm():
             verbose=False,
             mosek_params={'MSK_DPAR_INTPNT_CO_TOL_REL_GAP': 1e-6}
         )
-
 
 
 def test_centralized():
@@ -277,4 +279,7 @@ for t in range(200):
     for i in range(N):
         group[i].update_lambdas(group)
 
-    print(f"Iteration: {t}, ", [round(g.prob.objective.value,2) for g in group], end='\r')
+    print(f"Iteration: {t}, ", [round(g.prob.objective.value, 5) for g in group], end='\r')
+
+print("Final generator values: ", [round(g.prob.objective.value, 5) for g in group])
+print("Total: ", sum([g.prob.objective.value for g in group]))
