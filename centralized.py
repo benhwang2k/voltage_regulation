@@ -137,10 +137,10 @@ f_obj = sum([p_gen[i] for i in generators])
 
 
 prob = cp.Problem(cp.Minimize(f_obj), constraints)
-prob.solve(solver=cp.MOSEK, verbose=True,
+prob.solve(solver=cp.MOSEK, verbose=False,
            # Set the relative primal/dual tolerance a bit higher.
            # MOSEK refuses to converge any further on this problem.
-           mosek_params={mosek.dparam.intpnt_co_tol_rel_gap: 1e-6})
+           mosek_params={'MSK_DPAR_INTPNT_CO_TOL_REL_GAP': 1e-6})
 
 objective = prob.value
 print(f"Total Generation: {objective}")
