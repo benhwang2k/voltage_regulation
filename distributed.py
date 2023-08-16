@@ -3,6 +3,7 @@ import numpy as np
 import pickle
 import pandas as pd
 import mosek # this import is unused, but mosek needs to be installed
+import pickle
 
 DEBUG = False
 
@@ -269,24 +270,26 @@ def test_centralized():
 
 
 group = [None]*N
-for i in range(N):
-    group[i] = Algorithm(
-        group=i,
-        buses=bus_groups[i],
-    )
+    #group[i] = Algorithm(
+        #group=i,
+        #buses=bus_groups[i],
+    #)
+#
+    #group[i].build()
 
-    group[i].build()
+for i in range(N):
+    group[i] = pickle.load(open(f'group{i}.pickle', 'rb'))
 
 s1 = [1]*6
 s2 = [0]*6
 t = 0
-while sum([(e1 - e2)**2 for e1, e2 in zip(s1, s2)])**0.5 > 1e-6:
+while sum([(e1 - e2)**2 for e1, e2 in zip(s1, s2)])**0.5 > 1e-7:
     s2 = s1
 
     for i in range(N):
         group[i].solve()
 
-    update_vals = (t % 200 == 0)
+    update_vals = (t % 1 == 0)
     for i in range(N):
         group[i].update_lambdas(group, update_vals)
 
