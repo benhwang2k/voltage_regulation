@@ -278,7 +278,7 @@ group = [None]*N
     #group[i].build()
 
 for i in range(N):
-    group[i] = pickle.load(open(f'group{i}.pickle', 'rb'))
+    group[i] = pickle.load(open(f'bin/group{i}.pickle', 'rb'))
 
 s1 = [1]*6
 s2 = [0]*6
