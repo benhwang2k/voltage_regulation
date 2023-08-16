@@ -67,10 +67,10 @@ for i in buses:
     b[i] = -np.imag(y)
 
 
-alpha_P = 0.00003
-alpha_Q = 0.00003
-alpha_I = 1e-11
-alpha_V = 0.00005
+alpha_P = 2e-5
+alpha_Q = 2e-5
+alpha_I = 2e-11
+alpha_V = 2e-5
 
 
 class Algorithm():
@@ -223,7 +223,7 @@ class Algorithm():
 
         self.prob = cp.Problem(cp.Minimize(f_obj), constraints)
 
-    def update_lambdas(self, neighbors):
+    def update_lambdas(self, neighbors, update_vals=False):
         for line in self.neighbor_lines:
             for neighbor in neighbors:
                 if line not in neighbor.lines:
@@ -236,15 +236,17 @@ class Algorithm():
                 # between solves.
 
                 self.lam_P[line].value += alpha_P * (self.Pij[line].value - neighbor.Pij[line].value)
-                self.lam_P_shr[line] = self.lam_P[line]*neighbor.Pij[line].value
                 self.lam_Q[line].value += alpha_Q * (self.Qij[line].value - neighbor.Qij[line].value)
-                self.lam_Q_shr[line] = self.lam_Q[line]*neighbor.Qij[line].value
                 self.lam_I[line].value += alpha_I * (self.I[line].value - neighbor.I[line].value)
-                self.lam_I_shr[line] = self.lam_I[line]*neighbor.I[line].value
                 self.lam_V[line[0]].value += alpha_V * (self.V[line[0]].value - neighbor.V[line[1]].value)
                 self.lam_V[line[1]].value += alpha_V * (self.V[line[1]].value - neighbor.V[line[0]].value)
-                self.lam_V_shr[line[0]] = self.lam_V[line[0]].value*neighbor.V[line[0]].value
-                self.lam_V_shr[line[1]] = self.lam_V[line[1]].value*neighbor.V[line[1]].value
+
+                if update_vals:
+                    self.lam_P_shr[line].value = self.lam_P[line].value*neighbor.Pij[line].value
+                    self.lam_Q_shr[line].value = self.lam_Q[line].value*neighbor.Qij[line].value
+                    self.lam_I_shr[line].value = self.lam_I[line].value*neighbor.I[line].value
+                    self.lam_V_shr[line[0]].value = self.lam_V[line[0]].value*neighbor.V[line[0]].value
+                    self.lam_V_shr[line[1]].value = self.lam_V[line[1]].value*neighbor.V[line[1]].value
 
     def solve(self):
         self.prob.solve(
@@ -275,14 +277,24 @@ for i in range(N):
 
     group[i].build()
 
-for t in range(200):
+s1 = [1]*6
+s2 = [0]*6
+t = 0
+while sum([(e1 - e2)**2 for e1, e2 in zip(s1, s2)])**0.5 > 1e-6:
+    s2 = s1
+
     for i in range(N):
         group[i].solve()
 
+    update_vals = (t % 200 == 0)
     for i in range(N):
-        group[i].update_lambdas(group)
+        group[i].update_lambdas(group, update_vals)
 
-    print(f"Iteration: {t}, ", [round(g.prob.objective.value, 5) for g in group], end='\r')
+    s1 = [g.prob.objective.value for g in group]
 
-print("Final generator values: ", [round(g.prob.objective.value, 5) for g in group])
+    print(f"Iteration: {t}, ", [str(g.prob.objective.value)[0:10] for g in group], end='\r')
+
+    t = t + 1
+
+print(f"Final generator values (iteration {t}): ", [round(g.prob.objective.value, 6) for g in group])
 print("Total: ", sum([g.prob.objective.value for g in group]))
