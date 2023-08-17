@@ -49,6 +49,14 @@ async def handle_client(reader, writer):
     # Store the writer for later use
     writers[node_id] = writer
 
+    # Send the start message:
+    has_all_clients = True
+    for i in range(6):
+        has_all_clients = has_all_clients and (i in writers)
+    if has_all_clients:
+        for i in range(6):
+            await send(i, {'function': 'start'})
+
     # Serve client requests forever
     while True:
         request = (await reader.readline()).decode()
@@ -160,7 +168,7 @@ async def converged(msg):
     '''record the converged status of the source. return the status of all nodes'''
     nodes_diff[msg['src']] = msg['diff']
     print(f"{nodes_diff}", end='\r')
-    status = (sum(nodes_diff) ** 0.5 < 1e-4)
+    status = (sum(nodes_diff) ** 0.5 < 1e-6)
     response = {'function': 'converge' , 'status' : status}
     if status:
         nodes_converged[msg['src']] = 1

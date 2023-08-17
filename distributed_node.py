@@ -19,6 +19,9 @@ neigh_msg_counter = {}
 converge_recieved = False
 all_converged = False
 msg_q = {}
+msg_iteration = {}
+rec_iteration = {}
+start = False
 
 def log(msg):
     print(f"Node {node_id}: " + str(msg))
@@ -75,7 +78,7 @@ async def converge(msg):
     await send(msg)
     # wait for the message back
     while not converge_recieved:
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.01)
 
     return await send(msg)
 
@@ -129,6 +132,7 @@ async def send(msg):
 
 
 def dispatch(msg):
+    global start
     '''Algorithm specific behavior in response to messages'''
     if msg['function'] == 'broadcast':
         get_broadcast(msg)
@@ -138,6 +142,8 @@ def dispatch(msg):
         get_converge(msg)
     elif msg['function'] == 'set_loads':
         set_loads(msg)
+    elif msg['function'] == 'start':
+        start = True
     elif msg['function'] == 'ack':
         pass
     else:
@@ -395,7 +401,6 @@ class Algorithm():
                 # disciplined parameterized program (DPP) which is
                 # required for CVX to cache the program structure
                 # between solves.
-
                 self.lam_P[line].value += alpha_P * (self.Pij[line].value - neighbor.Pij[line].value)
                 self.lam_Q[line].value += alpha_Q * (self.Qij[line].value - neighbor.Qij[line].value)
                 self.lam_I[line].value += alpha_I * (self.I[line].value - neighbor.I[line].value)
@@ -433,7 +438,7 @@ def test_centralized():
 
 
 group = [None]*N
-
+warm_group = [None]*N
 for i in range(N):
     #group[i] = pickle.load(open(f'bin/group{i}.pickle', 'rb'))
     group[i] = Algorithm(i, bus_groups[i])
@@ -454,21 +459,25 @@ def set_loads(msg):
 
 
 def get_broadcast(msg):
-    global neigh_msg_counter, msg_q
+    global neigh_msg_counter, msg_q, msg_iteration
     '''update self's version of shared variables sent by src'''
-
-    if neigh_msg_counter[msg['src']] <= 0:
-        # this message is early
-        msg_q[msg['src']].append(msg)
-    else:
-        # process the next message
-        process_msg(msg)
+    msg_q[msg['src']].append(msg)
+    # if msg_iteration[msg['src']] >= msg['t']:
+    #     # this message is early
+    #     msg_q[msg['src']].append(msg)
+    # else:
+    #     # process the next message
+    #     process_msg(msg)
 
 def process_msg(msg):
-    global neigh_msg_counter
+    global group, neigh_msg_counter, msg_iteration, rec_iteration
     neigh_msg_counter[msg['src']] -= 1
+    rec_iteration[msg['src']] = msg['t']
     for line in group[node_id].neighbor_lines:
         if 'Pij' + str(line) in msg:
+            #warm_diff = warm_group[msg['src']].Pij[line].value - msg['Pij' + str(line)]
+            #if abs(warm_group[msg['src']].I[line].value - msg['I' + str(line)]) < 1e-2:
+            #    print(f"big diff in line {line} of group {msg['src']} as calculated by {node_id} = {warm_group[msg['src']].I[line].value - msg['I' + str(line)]}")
             group[msg['src']].Pij[line].value = msg['Pij' + str(line)]
             group[msg['src']].Qij[line].value = msg['Qij' + str(line)]
             group[msg['src']].I[line].value = msg['I' + str(line)]
@@ -482,9 +491,10 @@ def get_converge(msg):
     all_converged = msg['status']
     converge_recieved = True
 
-async def send_params():
+async def send_params(t):
     msg = {}
     for line in group[node_id].neighbor_lines:
+        msg['t'] = t
         msg['Pij' + str(line)] = group[node_id].Pij[line].value[()]
         msg['Qij' + str(line)] = group[node_id].Qij[line].value[()]
         msg['I' + str(line)] = group[node_id].I[line].value[()]
@@ -496,7 +506,7 @@ async def send_params():
 
 
 async def main():
-    global reader, writer, all_converged, neigh_msg_counter, msg_q
+    global reader, writer, all_converged, neigh_msg_counter, msg_q, msg_iteration, rec_iteration, start
 
     print(f"me = {node_id}")
     if node_id == 0:
@@ -525,14 +535,17 @@ async def main():
     elif node_id == 5:
         neigh_msg_counter[3] = 0
         msg_q[3] = []
-
+    for key in neigh_msg_counter:
+        msg_iteration[key] = 0
+        rec_iteration[key] = -1
 
     await connect_derp(DERP_IP, DERP_PORT)
 
     asyncio.create_task(handle_responses())
 
 
-
+    while not start:
+        await asyncio.sleep(1)
 
     while True:
         # read loads
@@ -552,16 +565,21 @@ async def main():
 
             for neighbor in neigh_msg_counter:
                 neigh_msg_counter[neighbor] += 1
-            await send_params()
+            await send_params(t)
             # wait for messages
             can_update = False
             while not can_update:
                 can_update = True
-                for neigh in neigh_msg_counter:
-                    if neigh_msg_counter[neigh] > 0 and msg_q[neigh]:
+                for neigh in msg_iteration:
+                    msg_iteration[neigh] = t
+                    print(f"t : {t} self: {node_id}, other: {neigh}, q : {msg_q[neigh]}")
+                    # print(f"msg iter: {msg_iteration[neigh]}")
+                    # print(f"rec iter: {rec_iteration[neigh]}")
+                    if msg_iteration[neigh] > rec_iteration[neigh] and len(msg_q[neigh]) > 0:
                         process_msg(msg_q[neigh].pop(0))
-                    can_update = can_update and (neigh_msg_counter[neigh] <=0)
-                await asyncio.sleep(0.01)
+                    can_update = can_update and (msg_iteration[neigh] == rec_iteration[neigh])
+                if not can_update:
+                    await asyncio.sleep(0.05)
             # now we have processed the same number of messages as we have sent
 
             # update lams
@@ -583,7 +601,9 @@ async def main():
             if not await converge(conv_msg):
                 await connect_derp(DERP_IP, DERP_PORT)
             t = t + 1
-
+            for g in group:
+                if (10,27) in g.Pij:
+                    print(f"group{node_id} sees line (10,27) in group {g.group} as {g.Pij[(10,27)].value}")
 
 
 
