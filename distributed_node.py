@@ -508,7 +508,6 @@ async def send_params(t):
 async def main():
     global reader, writer, all_converged, neigh_msg_counter, msg_q, msg_iteration, rec_iteration, start
 
-    print(f"me = {node_id}")
     if node_id == 0:
         neigh_msg_counter[1] = 0
         msg_q[1] = []
@@ -566,15 +565,13 @@ async def main():
             for neighbor in neigh_msg_counter:
                 neigh_msg_counter[neighbor] += 1
             await send_params(t)
+
             # wait for messages
             can_update = False
             while not can_update:
                 can_update = True
                 for neigh in msg_iteration:
                     msg_iteration[neigh] = t
-                    print(f"t : {t} self: {node_id}, other: {neigh}, q : {msg_q[neigh]}")
-                    # print(f"msg iter: {msg_iteration[neigh]}")
-                    # print(f"rec iter: {rec_iteration[neigh]}")
                     if msg_iteration[neigh] > rec_iteration[neigh] and len(msg_q[neigh]) > 0:
                         process_msg(msg_q[neigh].pop(0))
                     can_update = can_update and (msg_iteration[neigh] == rec_iteration[neigh])
@@ -586,7 +583,6 @@ async def main():
             update_vals = (t % 100 == 0)
             group[node_id].update_lambdas(group, update_vals)
             s1 = group[node_id].prob.objective.value
-            # print(f"Iteration: g{node_id} t{t} err: {sum(error) ** 0.5}", end='\r')
             # send diff
 
             conv_msg = {}
@@ -601,9 +597,8 @@ async def main():
             if not await converge(conv_msg):
                 await connect_derp(DERP_IP, DERP_PORT)
             t = t + 1
-            for g in group:
-                if (10,27) in g.Pij:
-                    print(f"group{node_id} sees line (10,27) in group {g.group} as {g.Pij[(10,27)].value}")
+
+
 
 
 
