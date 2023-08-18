@@ -588,6 +588,7 @@ async def main():
             conv_msg = {}
             conv_msg['diff'] = (s2-s1) ** 2
             conv_msg['pgen'] = group[node_id].prob.objective.value
+            conv_msg['qgen'] = group[node_id].q_gen[generators[node_id]].value[()]
             conv_msg['gen'] = generators[node_id]
             for b in group[node_id].buses:
                 if not (b in generators):

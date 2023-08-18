@@ -18,6 +18,7 @@ neighbors = [
 nodes_diff = [1.0]*6
 nodes_converged = [0]*6
 p_gen = {}
+q_gen = {}
 voltage = {}
 
 def log(msg):
@@ -149,12 +150,14 @@ def read_loads():
     return(ploads, qloads)
 
 async def reset_loads():
-    global nodes_diff, nodes_converged, voltage, p_gen
+    global nodes_diff, nodes_converged, voltage, p_gen, q_gen
     print(f"voltages: {voltage}")
     print(f"pgen : {p_gen}")
+    print(f"pgen : {q_gen}")
     nodes_diff = [1.0]*6
     nodes_converged = [0]*6
     p_gen = {}
+    q_gen = {}
     voltage = {}
     (ploads, qloads) = read_loads()
     msg = {'function': 'set_loads', 'ploads' : ploads, 'qloads' : qloads}
@@ -164,7 +167,7 @@ async def reset_loads():
     return {'function': 'ack'}
 
 async def converged(msg):
-    global nodes_diff, nodes_converged, voltage, p_gen
+    global nodes_diff, nodes_converged, voltage, p_gen, q_gen
     '''record the converged status of the source. return the status of all nodes'''
     nodes_diff[msg['src']] = msg['diff']
     print(f"{nodes_diff}", end='\r')
@@ -173,7 +176,8 @@ async def converged(msg):
     if status:
         nodes_converged[msg['src']] = 1
         # record p_gen and voltages
-        p_gen[msg['gen']] = msg['pgen']
+        p_gen[msg['src']] = msg['pgen']
+        q_gen[msg['src']] = msg['qgen']
         for i in range(48):
             if str(i) in msg:
                 voltage[i] = msg[str(i)]
