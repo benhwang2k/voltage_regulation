@@ -152,8 +152,8 @@ async def main():
                 # read the solution
                 setpoints = [(0,0)]*6
                 sol_voltages = [0.]*47
-                for gen_bus in p_gen:
-                    setpoints[gen_bus] = (p_gen[gen_bus], q_gen[gen_bus])
+                for g in range(6):
+                    setpoints[g] = (p_gen[g], q_gen[g])
                 for bus in range(48):
                     sol_voltages[bus] = voltage[bus]
                 sol = {'setpoints': p_gen, 'voltages': sol_voltage}
@@ -339,8 +339,8 @@ async def converged(msg):
     response = {'function': 'converge' , 'status' : status}
     if status:
         # record p_gen and voltages
-        p_gen[msg['gen']] = msg['pgen']
-        q_gen[msg['gen']] = msg['qgen']
+        p_gen[msg['src']] = msg['pgen']
+        q_gen[msg['src']] = msg['qgen']
         for i in range(48):
             if str(i) in msg:
                 voltage[i] = msg[str(i)]
