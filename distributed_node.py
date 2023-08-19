@@ -155,8 +155,8 @@ def handle_modbus(msg):
 
 
 
-
-DERP_IP = 'localhost'
+#DERP_IP = 'localhost'
+DERP_IP = '100.108.10.106'
 DERP_PORT = 10000
 
 
@@ -468,7 +468,7 @@ def test_centralized():
 group = [None]*N
 warm_group = [None]*N
 for i in range(N):
-    group[i] = pickle.load(open(f'bin/group{i}_other.pickle', 'rb'))
+    group[i] = pickle.load(open(f'bin/group{i}_new.pickle', 'rb'))
     # print(f"pickle value: {group[i].p_gen[generators[i]].value[()]}")
     # group[i] = Algorithm(i, bus_groups[i])
     # group[i].build()
