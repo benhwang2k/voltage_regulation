@@ -145,7 +145,7 @@ async def main():
             elif algorithm == 2:
                 pass
                 # send the current load data for the nodes to solve
-                await reset_loads(new_loads=new_loads) # new loads should be : [(p_area1, q_area1),(p_area2, q_area2),(p_area3, q_area3)]
+                await reset_loads(new_P=new_P, new_Q=new_Q) # new loads should be arrays of length 47 with the P, Q load associated with the bus at the index of the array
                 # wait for solution
                 while not (all(nodes_converged)):
                     await asyncio.sleep(0.1)
@@ -295,27 +295,8 @@ async def broadcast(msg):
 
     return {'function': 'ack'}
 
-def read_loads(new_loads):
-    area_buses = [
-        [6,7,8,9,10,22,23,24,25,26,31,32,33,35,36,37,38,39,40],
-        [11,14,15,16,17,18,19,28,29,30,34,42],
-        [4,5,20,44,45,46]
-    ]
-    ploads = {}
-    qloads = {}
-    for area in range(3):
-        for bus in area_buses[area]:
-            ploads[bus] = new_loads[0]
-            qloads[bus] = new_loads[1]
 
-    for i in range(48):
-        if not (i in ploads):
-            ploads[i] = 0.
-            qloads[i] = 0.
-
-    return(ploads, qloads)
-
-async def reset_loads(new_loads):
+async def reset_loads(new_P, new_Q):
     global nodes_diff, nodes_converged, voltage, p_gen, q_gen
     ''' This function will send the new load to all nodes (groups)'''
     nodes_diff = [1.0]*6
@@ -323,7 +304,11 @@ async def reset_loads(new_loads):
     p_gen = {}
     q_gen = {}
     voltage = {}
-    (ploads, qloads) = read_loads(new_loads)
+    ploads = {}
+    qloads = {}
+    for bus in range(48):
+        ploads[bus] = new_P[bus]
+        qloads[bus] = new_Q[bus]
     msg = {'function': 'set_loads', 'ploads' : ploads, 'qloads' : qloads}
     for i in range(6):
         await send(i, msg)
