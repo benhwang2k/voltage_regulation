@@ -195,6 +195,10 @@ for i in buses:
     if not np.isnan(loads[i+1][9]):
         P[loads[i+1][1]] -= float(loads[i+1][9])/scale
 
+P = [0.0, 0.0, 0.0, 0.0, 0.5456991, 0.8934548999999999, 0.4053246, 4.0337757000000005, 0.3709854000000001, 2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003, 0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752, 0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182, 0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199, 0.0, 0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
+Q = [0.0, 0.0, 0.0, 0.0, 0.40927440000000004, 0.6700910999999999, 0.3039264, 2.9246367, 0.5024061, 1.500165, 1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001, 0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996, 0.0, 0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496, 0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566, 0.591066, 0.4432955, 0.0]
+
+
 network = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx",
                         sheet_name="Branches_new").to_numpy()
 lines = [(int(network[i][0]), int(network[i][1]))
@@ -294,11 +298,28 @@ class Algorithm():
 
     def build(self):
         constraints = []
-        for i in buses:
-            self.P[loads[i + 1][1]] = cp.Parameter(value=float(loads[i + 1][5]) / scale)
-            self.Q[loads[i + 1][1]] = cp.Parameter(value=float(loads[i + 1][6]) / scale)
-            if not np.isnan(loads[i + 1][9]):
-                self.P[loads[i + 1][1]].value -= float(loads[i + 1][9]) / scale
+        # for i in buses:
+        #     self.P[loads[i + 1][1]] = cp.Parameter(value=float(loads[i + 1][5]) / scale)
+        #     self.Q[loads[i + 1][1]] = cp.Parameter(value=float(loads[i + 1][6]) / scale)
+        #     if not np.isnan(loads[i + 1][9]):
+        #         self.P[loads[i + 1][1]].value -= float(loads[i + 1][9]) / scale
+
+        P_nom = [0.0, 0.0, 0.0, 0.0, 0.5456991, 0.8934548999999999, 0.4053246, 4.0337757000000005, 0.3709854000000001,
+             2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003,
+             0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752,
+             0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182,
+             0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199, 0.0,
+             0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
+        Q_nom = [0.0, 0.0, 0.0, 0.0, 0.40927440000000004, 0.6700910999999999, 0.3039264, 2.9246367, 0.5024061, 1.500165,
+             1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001,
+             0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996, 0.0,
+             0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496,
+             0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566,
+             0.591066, 0.4432955, 0.0]
+        for i in range(48):
+            self.P[i] = cp.Parameter(value=P_nom[i])
+            self.Q[i] = cp.Parameter(value=Q_nom[i])
+
         for i in self.buses + self.neighbors:
             if i not in generators:
                 self.V[i] = cp.Variable()
@@ -307,10 +328,17 @@ class Algorithm():
             else:
                 self.p_gen[i] = cp.Variable()
                 self.q_gen[i] = cp.Variable()
-                constraints = [self.p_gen[i] <= 2000]
-                constraints += [self.q_gen[i] <= 2000]
-                constraints += [self.p_gen[i] >= -2000]
-                constraints += [self.q_gen[i] >= -2000]
+                if i != 13:
+                    constraints += [self.p_gen[i] <= 2000]
+                    constraints += [self.q_gen[i] <= 2000]
+                    constraints += [self.p_gen[i] >= -2000]
+                    constraints += [self.q_gen[i] >= -2000]
+                else:
+                    constraints += [self.p_gen[i] <= 0.25]
+                    constraints += [self.q_gen[i] <= 0.25]
+                    constraints += [self.p_gen[i] >= -0.25]
+                    constraints += [self.q_gen[i] >= -0.25]
+
 
         for line in self.lines:
             self.I[line] = cp.Variable()
@@ -440,21 +468,30 @@ def test_centralized():
 group = [None]*N
 warm_group = [None]*N
 for i in range(N):
-    #group[i] = pickle.load(open(f'bin/group{i}.pickle', 'rb'))
-    group[i] = Algorithm(i, bus_groups[i])
-    group[i].build()
+    group[i] = pickle.load(open(f'bin/group{i}_other.pickle', 'rb'))
+    # print(f"pickle value: {group[i].p_gen[generators[i]].value[()]}")
+    # group[i] = Algorithm(i, bus_groups[i])
+    # group[i].build()
 
+print(group[0])
 
 def set_loads(msg):
     global group
     ''' set the loads of the groups to the new ones'''
+    #pickle the nodes
+    # file_name = f"bin/group{node_id}_new.pickle"
+    # with open(file_name, 'wb') as filehandler:
+    #     pickle.dump(group[node_id], filehandler)
+    # pickle.dump(group[node_id], open(f"bin/group{node_id}_other.pickle", 'wb'))
+    # print(f"pgen_group{node_id} is {group[node_id].p_gen[generators[node_id]]}")
     print(f"group {node_id} recieved new loads")
     ploads = msg['ploads']
     qloads = msg['qloads']
     for g in range(N):
-        for key in group[g].P:
-            group[g].P[key].value = ploads[str(key)]
-            group[g].Q[key].value = qloads[str(key)]
+        if g != 4:
+            for key in group[g].P:
+                group[g].P[key].value = ploads[str(key)]
+                group[g].Q[key].value = qloads[str(key)]
 
 
 
@@ -598,7 +635,7 @@ async def main():
             if not await converge(conv_msg):
                 await connect_derp(DERP_IP, DERP_PORT)
             t = t + 1
-
+            print(f"t: {t}")
 
 
 

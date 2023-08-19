@@ -145,7 +145,7 @@ def read_loads():
     ploads = {}
     qloads = {}
     for i in range(48):
-        ploads[i] = random.random()*0.6 + 0.4
+        ploads[i] = random.random()* 0.6 + 0.4
         qloads[i] = random.random() * 0.6 + 0.4
     return(ploads, qloads)
 
@@ -153,7 +153,7 @@ async def reset_loads():
     global nodes_diff, nodes_converged, voltage, p_gen, q_gen
     print(f"voltages: {voltage}")
     print(f"pgen : {p_gen}")
-    print(f"pgen : {q_gen}")
+    print(f"qgen : {q_gen}")
     nodes_diff = [1.0]*6
     nodes_converged = [0]*6
     p_gen = {}
@@ -171,7 +171,7 @@ async def converged(msg):
     '''record the converged status of the source. return the status of all nodes'''
     nodes_diff[msg['src']] = msg['diff']
     print(f"{nodes_diff}", end='\r')
-    status = (sum(nodes_diff) ** 0.5 < 1e-6)
+    status = (sum(nodes_diff) ** 0.5 < 1e-4)
     response = {'function': 'converge' , 'status' : status}
     if status:
         nodes_converged[msg['src']] = 1
