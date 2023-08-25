@@ -73,7 +73,7 @@ for i in buses:
 
 alpha_P = 2e-5
 alpha_Q = 2e-5
-alpha_I = 2e-8
+alpha_I = 2e-11
 alpha_V = 2e-5
 
 
@@ -124,6 +124,13 @@ class Algorithm():
         self.lam_Q_shr = {}
         self.lam_I_shr = {}
         self.lam_V_shr = {}
+
+        # self's previous shared values:
+        self.prevP = {}
+        self.prevQ = {}
+        self.prevI = {}
+        self.prevV0 = {}
+        self.prevV1 = {}
 
         # y values
         self.yP = {}
@@ -229,6 +236,13 @@ class Algorithm():
             self.lam_V_shr[line[0]] = cp.Parameter(value=0)
             self.lam_V_shr[line[1]] = cp.Parameter(value=0)
 
+            self.prevP[line] = cp.Parameter(value=0)
+            self.prevQ[line] = cp.Parameter(value=0)
+            self.prevI[line] = cp.Parameter(value=0)
+            self.prevV0[line] = cp.Parameter(value=0)
+            self.prevV1[line] = cp.Parameter(value=0)
+
+
             # y values
             self.yP[line] = cp.Variable()
             self.yQ[line] = cp.Variable()
@@ -248,11 +262,17 @@ class Algorithm():
                 alpha_I * self.yI[line] / 2.0,
                 alpha_V * self.yV0[line] / 2.0,
                 alpha_V * self.yV1[line] / 2.0,
-                self.lam_P[line] * self.Pij[line] - (self.Pij[line] + self.lam_P_shr[line])/2,
-                self.lam_Q[line] * self.Qij[line] - (self.Qij[line] + self.lam_Q_shr[line])/2,
-                self.lam_I[line] * self.I[line] - (self.I[line] + self.lam_I_shr[line])/2,
-                self.lam_V[line[0]] * self.V[line[0]] - (self.lam_V_shr[line[0]] + self.V[line[0]])/2,
-                self.lam_V[line[1]] * self.V[line[1]] - (self.lam_V_shr[line[1]] + self.V[line[1]]) / 2,
+                # self.lam_P[line] * self.Pij[line] - self.lam_P_shr[line]),
+                # self.lam_Q[line] * self.Qij[line] - self.lam_Q_shr[line],
+                # self.lam_I[line] * self.I[line] - self.lam_I_shr[line],
+                # self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_shr[line[0]],
+                # self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_shr[line[1]],
+                #
+                self.lam_P[line] * self.Pij[line] - (self.prevP[line] + self.lam_P_shr[line])/2,
+                self.lam_Q[line] * self.Qij[line] - (self.prevQ[line] + self.lam_Q_shr[line])/2,
+                self.lam_I[line] * self.I[line] - (self.prevI[line] + self.lam_I_shr[line])/2,
+                self.lam_V[line[0]] * self.V[line[0]] - (self.prevV0[line] + self.lam_V_shr[line[0]])/2,
+                self.lam_V[line[1]] * self.V[line[1]] - (self.prevV1[line] + self.lam_V_shr[line[1]])/2,
             ]
 
             f_obj += sum(lambdas)
@@ -261,6 +281,7 @@ class Algorithm():
 
     def update_lambdas(self, neighbors, update_vals=False):
         for line in self.neighbor_lines:
+
             for neighbor in neighbors:
                 if line not in neighbor.lines:
                     continue
@@ -283,6 +304,11 @@ class Algorithm():
                     self.lam_I_shr[line].value = self.lam_I[line].value*neighbor.I[line].value
                     self.lam_V_shr[line[0]].value = self.lam_V[line[0]].value*neighbor.V[line[0]].value
                     self.lam_V_shr[line[1]].value = self.lam_V[line[1]].value*neighbor.V[line[1]].value
+            self.prevP[line].value = self.lam_P[line].value * self.Pij[line].value
+            self.prevQ[line].value = self.lam_Q[line].value * self.Qij[line].value
+            self.prevI[line].value = self.lam_I[line].value * self.I[line].value
+            self.prevV0[line].value = self.lam_V[line[0]].value * self.V[line[0]].value
+            self.prevV1[line].value = self.lam_V[line[1]].value * self.V[line[1]].value
 
     def get_shared(self, neighbors):
         shared = {}
