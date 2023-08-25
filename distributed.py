@@ -71,10 +71,10 @@ for i in buses:
     b[i] = -np.imag(y)
 
 
-alpha_P = 2e-5
-alpha_Q = 2e-5
-alpha_I = 2e-11
-alpha_V = 2e-5
+alpha_P = 1e-3
+alpha_Q = 1e-3
+alpha_I = 1e-11
+alpha_V = 5e-3
 
 
 class Algorithm():
@@ -262,17 +262,17 @@ class Algorithm():
                 alpha_I * self.yI[line] / 2.0,
                 alpha_V * self.yV0[line] / 2.0,
                 alpha_V * self.yV1[line] / 2.0,
-                # self.lam_P[line] * self.Pij[line] - self.lam_P_shr[line]),
-                # self.lam_Q[line] * self.Qij[line] - self.lam_Q_shr[line],
-                # self.lam_I[line] * self.I[line] - self.lam_I_shr[line],
-                # self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_shr[line[0]],
-                # self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_shr[line[1]],
+                self.lam_P[line] * self.Pij[line] - self.lam_P_shr[line],
+                self.lam_Q[line] * self.Qij[line] - self.lam_Q_shr[line],
+                self.lam_I[line] * self.I[line] - self.lam_I_shr[line],
+                self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_shr[line[0]],
+                self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_shr[line[1]],
                 #
-                self.lam_P[line] * self.Pij[line] - (self.prevP[line] + self.lam_P_shr[line])/2,
-                self.lam_Q[line] * self.Qij[line] - (self.prevQ[line] + self.lam_Q_shr[line])/2,
-                self.lam_I[line] * self.I[line] - (self.prevI[line] + self.lam_I_shr[line])/2,
-                self.lam_V[line[0]] * self.V[line[0]] - (self.prevV0[line] + self.lam_V_shr[line[0]])/2,
-                self.lam_V[line[1]] * self.V[line[1]] - (self.prevV1[line] + self.lam_V_shr[line[1]])/2,
+                # self.lam_P[line] * self.Pij[line] - (self.prevP[line] + self.lam_P_shr[line])/2,
+                # self.lam_Q[line] * self.Qij[line] - (self.prevQ[line] + self.lam_Q_shr[line])/2,
+                # self.lam_I[line] * self.I[line] - (self.prevI[line] + self.lam_I_shr[line])/2,
+                # self.lam_V[line[0]] * self.V[line[0]] - (self.prevV0[line] + self.lam_V_shr[line[0]])/2,
+                # self.lam_V[line[1]] * self.V[line[1]] - (self.prevV1[line] + self.lam_V_shr[line[1]])/2,
             ]
 
             f_obj += sum(lambdas)
@@ -326,7 +326,7 @@ class Algorithm():
         self.prob.solve(
             solver=cp.MOSEK,
             verbose=False,
-            mosek_params={'MSK_DPAR_INTPNT_CO_TOL_REL_GAP': 1e-5}
+            mosek_params={'MSK_DPAR_INTPNT_CO_TOL_REL_GAP': 5e-6}
         )
 
 
@@ -367,13 +367,22 @@ for i in range(6):
     shared[i] = {}
 
 
-while sum([(e1 - e2)**2 for e1, e2 in zip(s1, s2)])**0.5 > 1e-4:
+while sum([(e1 - e2)**2 for e1, e2 in zip(s1, s2)])**0.5 > 1e-6 and t < 1200:
     s2 = s1
 
     for i in range(N):
         group[i].solve()
-
-    update_vals = (t % 100 == 0)
+    if t > 50:
+        alpha_P = 2e-4
+        alpha_Q = 2e-4
+        alpha_I = 2e-11
+        alpha_V = 2e-4
+    if t > 100:
+        alpha_P = 2e-5
+        alpha_Q = 2e-5
+        alpha_I = 2e-11
+        alpha_V = 2e-5
+    update_vals = (t % 50 == 0)
     for i in range(N):
         shared_vals = group[i].get_shared(group)
         for line in shared_vals:
