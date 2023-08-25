@@ -4,6 +4,7 @@ import pickle
 import pandas as pd
 import mosek # this import is unused, but mosek needs to be installed
 import pickle
+import matplotlib.pyplot as plt
 
 DEBUG = False
 
@@ -38,6 +39,8 @@ for i in buses:
     if not np.isnan(loads[i+1][9]):
         P[loads[i+1][1]] -= float(loads[i+1][9])/scale
 
+P = [0.0, 0.0, 0.0, 0.0, 0.5456991, 0.8934548999999999, 0.4053246, 4.0337757000000005, 0.3709854000000001, 2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003, 0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752, 0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182, 0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199, 0.0, 0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
+Q = [0.0, 0.0, 0.0, 0.0, 0.40927440000000004, 0.6700910999999999, 0.3039264, 2.9246367, 0.5024061, 1.500165, 1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001, 0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996, 0.0, 0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496, 0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566, 0.591066, 0.4432955, 0.0]
 network = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx",
                         sheet_name="Branches_new").to_numpy()
 lines = [(int(network[i][0]), int(network[i][1]))
@@ -70,7 +73,7 @@ for i in buses:
 
 alpha_P = 2e-5
 alpha_Q = 2e-5
-alpha_I = 2e-11
+alpha_I = 2e-8
 alpha_V = 2e-5
 
 
@@ -122,6 +125,13 @@ class Algorithm():
         self.lam_I_shr = {}
         self.lam_V_shr = {}
 
+        # y values
+        self.yP = {}
+        self.yQ = {}
+        self.yI = {}
+        self.yV0 = {}
+        self.yV1 = {}
+
         if DEBUG:
             print(
                 f"Initialized group {self.group} with\n",
@@ -142,10 +152,16 @@ class Algorithm():
             else:
                 self.p_gen[i] = cp.Variable()
                 self.q_gen[i] = cp.Variable()
-                constraints = [self.p_gen[i] <= 2000]
-                constraints += [self.q_gen[i] <= 2000]
-                constraints += [self.p_gen[i] >= -2000]
-                constraints += [self.q_gen[i] >= -2000]
+                if i == 13:
+                    constraints += [self.p_gen[i] <= 0.25]
+                    constraints += [self.p_gen[i] >= -0.25]
+                    constraints += [self.q_gen[i] <= 0.25]
+                    constraints += [self.q_gen[i] >= -0.25]
+                else:
+                    constraints += [self.p_gen[i] <= 2000]
+                    constraints += [self.q_gen[i] <= 2000]
+                    constraints += [self.p_gen[i] >= -2000]
+                    constraints += [self.q_gen[i] >= -2000]
 
         for line in self.lines:
             self.I[line] = cp.Variable()
@@ -212,12 +228,31 @@ class Algorithm():
             self.lam_I_shr[line] = cp.Parameter(value=0)
             self.lam_V_shr[line[0]] = cp.Parameter(value=0)
             self.lam_V_shr[line[1]] = cp.Parameter(value=0)
+
+            # y values
+            self.yP[line] = cp.Variable()
+            self.yQ[line] = cp.Variable()
+            self.yI[line] = cp.Variable()
+            self.yV0[line] = cp.Variable()
+            self.yV1[line] = cp.Variable()
+
+            constraints += [self.yP[line] >= 0, cp.abs((self.Pij[line] - self.lam_P_shr[line])) <= self.yP[line] ]
+            constraints += [self.yQ[line] >= 0, cp.abs((self.Qij[line] - self.lam_Q_shr[line])) <= self.yP[line] ]
+            constraints += [self.yI[line] >= 0, cp.abs((self.I[line] - self.lam_I_shr[line])) <= self.yP[line] ]
+            constraints += [self.yV0[line] >= 0, cp.abs((self.V[line[0]] - self.lam_V_shr[line[0]])) <= self.yP[line] ]
+            constraints += [self.yV1[line] >= 0, cp.abs((self.V[line[1]] - self.lam_V_shr[line[1]])) <= self.yP[line] ]
+
             lambdas = [
-                self.lam_P[line] * self.Pij[line] - self.lam_P_shr[line],
-                self.lam_Q[line] * self.Qij[line] - self.lam_Q_shr[line],
-                self.lam_I[line] * self.I[line] - self.lam_I_shr[line],
-                self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_shr[line[0]],
-                self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_shr[line[1]],
+                alpha_P * self.yP[line] / 2.0,
+                alpha_Q * self.yQ[line] / 2.0,
+                alpha_I * self.yI[line] / 2.0,
+                alpha_V * self.yV0[line] / 2.0,
+                alpha_V * self.yV1[line] / 2.0,
+                self.lam_P[line] * self.Pij[line] - (self.Pij[line] + self.lam_P_shr[line])/2,
+                self.lam_Q[line] * self.Qij[line] - (self.Qij[line] + self.lam_Q_shr[line])/2,
+                self.lam_I[line] * self.I[line] - (self.I[line] + self.lam_I_shr[line])/2,
+                self.lam_V[line[0]] * self.V[line[0]] - (self.lam_V_shr[line[0]] + self.V[line[0]])/2,
+                self.lam_V[line[1]] * self.V[line[1]] - (self.lam_V_shr[line[1]] + self.V[line[1]]) / 2,
             ]
 
             f_obj += sum(lambdas)
@@ -243,17 +278,29 @@ class Algorithm():
                 self.lam_V[line[1]].value += alpha_V * (self.V[line[1]].value - neighbor.V[line[0]].value)
 
                 if update_vals:
-                    self.lam_P_shr[line].value = self.lam_P[line].value*neighbor.Pij[line].value
+                    self.lam_P_shr[line].value += self.lam_P[line].value*neighbor.Pij[line].value
                     self.lam_Q_shr[line].value = self.lam_Q[line].value*neighbor.Qij[line].value
                     self.lam_I_shr[line].value = self.lam_I[line].value*neighbor.I[line].value
                     self.lam_V_shr[line[0]].value = self.lam_V[line[0]].value*neighbor.V[line[0]].value
                     self.lam_V_shr[line[1]].value = self.lam_V[line[1]].value*neighbor.V[line[1]].value
 
+    def get_shared(self, neighbors):
+        shared = {}
+        for line in self.neighbor_lines:
+            for neighbor in neighbors:
+                if line not in neighbor.lines:
+                    continue
+                shared[line] = (self.Pij[line].value, self.Qij[line].value, self.I[line].value, self.V[line[0]].value, self.V[line[1]].value)
+                # shared[line] = (0, 0, self.I[line].value, self.V[line[0]].value, self.V[line[1]].value)
+                # shared[line] = (0, 0, 0, self.V[line[0]].value, self.V[line[1]].value)
+
+        return shared
+
     def solve(self):
         self.prob.solve(
             solver=cp.MOSEK,
             verbose=False,
-            mosek_params={'MSK_DPAR_INTPNT_CO_TOL_REL_GAP': 1e-6}
+            mosek_params={'MSK_DPAR_INTPNT_CO_TOL_REL_GAP': 1e-5}
         )
 
 
@@ -264,10 +311,13 @@ def test_centralized():
 
     group_all.solve()
 
-    print(f"Total generation: {group_all.prob.objective.value}")
-
+    print(f"Total generation: {[group_all.p_gen[generators[i]].value[()] for i in range(6)]}")
+    for i in range(6):
+        print(f"centralized generation at bus{generators[i]} is {group_all.p_gen[generators[i]].value[()]}")
     return group_all
 
+
+#test_centralized()
 
 group = [None]*N
     #group[i] = Algorithm(
@@ -278,26 +328,107 @@ group = [None]*N
     #group[i].build()
 
 for i in range(N):
-    group[i] = pickle.load(open(f'bin/group{i}.pickle', 'rb'))
+    group[i] = Algorithm(group=i, buses=bus_groups[i])
+    group[i].build()
+    #group[i] = pickle.load(open(f'bin/group{i}.pickle', 'rb'))
 
 s1 = [1]*6
 s2 = [0]*6
 t = 0
-while sum([(e1 - e2)**2 for e1, e2 in zip(s1, s2)])**0.5 > 1e-7:
+
+shared = {}
+for i in range(6):
+    shared[i] = {}
+
+
+while sum([(e1 - e2)**2 for e1, e2 in zip(s1, s2)])**0.5 > 1e-4:
     s2 = s1
 
     for i in range(N):
         group[i].solve()
 
-    update_vals = (t % 1 == 0)
+    update_vals = (t % 100 == 0)
     for i in range(N):
+        shared_vals = group[i].get_shared(group)
+        for line in shared_vals:
+            if not (line in shared[i]):
+                shared[i][line] = [shared_vals[line]]
+            else:
+                shared[i][line] += [shared_vals[line]]
         group[i].update_lambdas(group, update_vals)
 
     s1 = [g.prob.objective.value for g in group]
-
-    print(f"Iteration: {t}, ", [str(g.prob.objective.value)[0:10] for g in group], end='\r')
-
+    
+    print(f"Iter: {t},  {[(e1 - e2)**2 for e1, e2 in zip(s1, s2)]}", end ='\r' )#[str(g.prob.objective.value)[0:10] for g in group], end='\r')
     t = t + 1
+shared_lines = [(0,1), (0,3), (6,7), (10,27), (41,28)]
+diff_p = {}
+diff_q = {}
+diff_i = {}
+diff_v0 = {}
+diff_v1 = {}
+for line in shared_lines:
+    diff_p[line] = []
+    diff_q[line] = []
+    diff_i[line] = []
+    diff_v0[line] = []
+    diff_v1[line] = []
+for i in range(6):
+    j = i + 1
+    while j < 6:
+        for k in range(t):
+            for line in shared[i]:
+                if line in shared[j]:
+                    diff_p[line].append(abs(shared[i][line][k][0] - shared[j][line][k][0]))
+                    diff_q[line].append(abs(shared[i][line][k][1] - shared[j][line][k][1]))
+                    diff_i[line].append(abs(shared[i][line][k][2] - shared[j][line][k][2]))
+                    diff_v0[line].append(abs(shared[i][line][k][3] - shared[j][line][k][3]))
+                    diff_v1[line].append(abs(shared[i][line][k][4] - shared[j][line][k][4]))
+        j += 1
+plt.figure()
+for line in shared_lines:
+    plt.plot(diff_p[line])
+plt.title("Shared Params = P,Q,I,V | Active Power Diffs")
+plt.legend(["(0,1)", "(0,3)", "(6,7)", "(10,27)", "(41,28)"])
+plt.savefig("Y and All Active Power Diffs.png")
+plt.figure()
+for line in shared_lines:
+    plt.plot(diff_q[line])
+plt.legend(["(0,1)", "(0,3)", "(6,7)", "(10,27)", "(41,28)"])
+plt.title("Shared Params = P,Q,I,V | Reactive Power Diffs")
+plt.savefig("Y and All Reactive Power Diffs.png")
+plt.figure()
+for line in shared_lines:
+    plt.plot(diff_i[line])
+plt.legend(["(0,1)", "(0,3)", "(6,7)", "(10,27)", "(41,28)"])
+plt.title("Shared Params = P,Q,I,V | Current Diffs")
+plt.savefig("Y and All Current Diffs.png")
+plt.figure()
+for line in shared_lines:
+    plt.plot(diff_v0[line])
+plt.legend(["(0,1)", "(0,3)", "(6,7)", "(10,27)", "(41,28)"])
+plt.title("Shared Params =  P,Q,I,V | Voltage at first bus Diffs")
+plt.savefig("Y and All Voltage ast first bus Diffs.png")
+plt.figure()
+for line in shared_lines:
+    plt.plot(diff_v1[line])
+plt.legend(["(0,1)", "(0,3)", "(6,7)", "(10,27)", "(41,28)"])
+plt.title("Shared Params =  P,Q,I,V | Voltage at second bus Diffs")
+plt.savefig("Y and All Voltage at second bus Diffs.png")
+plt.figure()
+agg = {}
+for line in shared_lines:
+    agg[line] = []
+    for k in range(t):
+        agg[line].append(diff_v1[line][k] + diff_v0[line][k] + diff_i[line][k] + diff_q[line][k] + diff_p[line][k])
+for line in shared_lines:
+    plt.plot(agg[line])
+plt.legend(["(0,1)", "(0,3)", "(6,7)", "(10,27)", "(41,28)"])
+plt.title("Shared Params = P,Q,I,V | sum of abs of all diffs (p,q,i,v)")
+plt.savefig("Y and All aggregate.png")
 
-print(f"Final generator values (iteration {t}): ", [round(g.prob.objective.value, 6) for g in group])
-print("Total: ", sum([g.prob.objective.value for g in group]))
+# print("--------------")
+# print("Total: ", sum([g.prob.objective.value for g in group]))
+# print(f"Final generator values (iteration {t}): ", [g.p_gen[generators[g.group]].value[()] for g in group])
+# print(f"Final generator values (iteration {t}): ", [g.q_gen[generators[g.group]].value[()] for g in group])
+# print("Total: ", sum([g.prob.objective.value for g in group]))
