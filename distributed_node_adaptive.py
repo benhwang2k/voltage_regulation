@@ -281,18 +281,12 @@ class Algorithm():
         self.lam_I = {}
         self.lam_V = {}
 
-        # record values from previous iteration
-        self.prev_I = {}
-        self.prev_V = {}
-
         # Shared (coupled) state
         self.lam_P_shr = {}
         self.lam_Q_shr = {}
         self.lam_I_shr = {}
         self.lam_V_shr = {}
 
-        self.I_shr = {}
-        self.V_shr = {}
 
 
 
@@ -405,9 +399,6 @@ class Algorithm():
         f_obj = sum(self.p_gen)
 
         for line in self.neighbor_lines:
-            self.prev_I[line] = cp.Parameter(value=0)
-            self.prev_V[line[0]] = cp.Parameter(value=0)
-            self.prev_V[line[1]] = cp.Parameter(value=0)
 
             self.lam_P[line] = cp.Parameter(value=0)
             self.lam_Q[line] = cp.Parameter(value=0)
@@ -420,23 +411,12 @@ class Algorithm():
             self.lam_V_shr[line[0]] = cp.Parameter(value=0)
             self.lam_V_shr[line[1]] = cp.Parameter(value=0)
 
-            self.I_shr[line] = cp.Parameter(value=0)
-            self.V_shr[line[0]] = cp.Parameter(value=0)
-            self.V_shr[line[1]] = cp.Parameter(value=0)
-            self.prev_I[line] = cp.Parameter(value=0)
-            self.prev_V[line[0]] = cp.Parameter(value=0)
-            self.prev_V[line[1]] = cp.Parameter(value=0)
-
             lambdas = [
                 self.lam_P[line] * self.Pij[line] - self.lam_P_shr[line],
                 self.lam_Q[line] * self.Qij[line] - self.lam_Q_shr[line],
                 self.lam_I[line] * self.I[line] - self.lam_I_shr[line],
                 self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_shr[line[0]],
                 self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_shr[line[1]],
-
-                # cp.abs(self.lam_I[line] * self.I[line] - self.lam_I_shr[line]),
-                # cp.abs(self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_shr[line[0]]),
-                # cp.abs(self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_shr[line[1]]),
             ]
 
             f_obj += sum(lambdas)
@@ -467,10 +447,6 @@ class Algorithm():
                     self.lam_V_shr[line[0]].value = self.lam_V[line[0]].value*neighbor.V[line[0]].value
                     self.lam_V_shr[line[1]].value = self.lam_V[line[1]].value*neighbor.V[line[1]].value
 
-                    self.I_shr[line].value = neighbor.I[line].value
-                    self.V_shr[line[0]].value = neighbor.V[line[0]].value
-                    self.V_shr[line[1]].value = neighbor.V[line[1]].value
-
 
     def solve(self):
         self.prob.solve(
@@ -498,10 +474,10 @@ def test_centralized():
 group = [None]*N
 warm_group = [None]*N
 for i in range(N):
-    #group[i] = pickle.load(open(f'bin/group{i}_new.pickle', 'rb'))
+    group[i] = pickle.load(open(f'bin/group{i}_new.pickle', 'rb'))
     # print(f"pickle value: {group[i].p_gen[generators[i]].value[()]}")
-    group[i] = Algorithm(i, bus_groups[i])
-    group[i].build()
+    # group[i] = Algorithm(i, bus_groups[i])
+    # group[i].build()
 
 print(group[0])
 t = 0
@@ -641,10 +617,7 @@ async def main():
                 alpha_V = 2e-5
 
             group[node_id].solve()
-            # for line in group[node_id].neighbor_lines:
-            #     group[node_id].prev_I[line].value = group[node_id].I[line].value
-            #     group[node_id].prev_V[line[0]].value = group[node_id].V[line[0]].value
-            #     group[node_id].prev_V[line[1]].value = group[node_id].V[line[1]].value
+
 
 
             for neighbor in neigh_msg_counter:
