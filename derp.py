@@ -1,6 +1,7 @@
 import asyncio
 import json
 import random
+import math
 from pymodbus.client import ModbusTcpClient
 
 
@@ -151,8 +152,8 @@ def read_loads():
 
 async def reset_loads():
     global nodes_diff, nodes_converged, voltage, p_gen, q_gen
-    print(f"voltages: {voltage}")
-    print(f"pgen : {p_gen}")
+    # print(f"\n voltages: {voltage}")
+    print(f"\npgen : {p_gen}")
     print(f"qgen : {q_gen}")
     nodes_diff = [1.0]*6
     nodes_converged = [0]*6
@@ -166,12 +167,14 @@ async def reset_loads():
 
     return {'function': 'ack'}
 
+
+
 async def converged(msg):
     global nodes_diff, nodes_converged, voltage, p_gen, q_gen
     '''record the converged status of the source. return the status of all nodes'''
     nodes_diff[msg['src']] = msg['diff']
-    print(f"{nodes_diff}", end='\r')
-    status = (sum(nodes_diff) ** 0.5 < 1e-4)
+    print(f" diffs log 10 {[round(math.log10(diff), 2) for diff in nodes_diff]}", end='\r')
+    status = (sum(nodes_diff) ** 0.5 < 1e-6)
     response = {'function': 'converge' , 'status' : status}
     if status:
         nodes_converged[msg['src']] = 1

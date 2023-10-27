@@ -187,16 +187,16 @@ loads = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx",
                       sheet_name="Buses_new").to_numpy()
 
 
-P = [0.]*n
-Q = [0.]*n
-for i in buses:
-    P[loads[i+1][1]] = float(loads[i+1][5])/scale
-    Q[loads[i+1][1]] = float(loads[i+1][6])/scale
-    if not np.isnan(loads[i+1][9]):
-        P[loads[i+1][1]] -= float(loads[i+1][9])/scale
-
-P = [0.0, 0.0, 0.0, 0.0, 0.5456991, 0.8934548999999999, 0.4053246, 4.0337757000000005, 0.3709854000000001, 2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003, 0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752, 0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182, 0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199, 0.0, 0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
-Q = [0.0, 0.0, 0.0, 0.0, 0.40927440000000004, 0.6700910999999999, 0.3039264, 2.9246367, 0.5024061, 1.500165, 1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001, 0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996, 0.0, 0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496, 0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566, 0.591066, 0.4432955, 0.0]
+# P = [0.]*n
+# Q = [0.]*n
+# for i in buses:
+#     P[loads[i+1][1]] = float(loads[i+1][5])/scale
+#     Q[loads[i+1][1]] = float(loads[i+1][6])/scale
+#     if not np.isnan(loads[i+1][9]):
+#         P[loads[i+1][1]] -= float(loads[i+1][9])/scale
+#
+# P = [0.0, 0.0, 0.0, 0.0, 0.5456991, 0.8934548999999999, 0.4053246, 4.0337757000000005, 0.3709854000000001, 2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003, 0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752, 0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182, 0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199, 0.0, 0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
+# Q = [0.0, 0.0, 0.0, 0.0, 0.40927440000000004, 0.6700910999999999, 0.3039264, 2.9246367, 0.5024061, 1.500165, 1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001, 0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996, 0.0, 0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496, 0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566, 0.591066, 0.4432955, 0.0]
 
 
 network = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx",
@@ -254,15 +254,11 @@ class Algorithm():
                 self.neighbor_lines += [line]
                 self.neighbors += [line[0]]
 
-        # dict of loads
-        self.P = {}
-        self.Q = {}
-
         # Decision variables are stored here for easy access
         # before and after solving the model
 
         # Voltage squared
-        self.V = [1.]*48
+        self.V = [1.] * 48
 
         # Current squared
         self.I = {}
@@ -272,8 +268,8 @@ class Algorithm():
         self.Qij = {}
 
         # Power generation
-        self.p_gen = [0.]*48
-        self.q_gen = [0.]*48
+        self.p_gen = [0.] * 48
+        self.q_gen = [0.] * 48
 
         # Lagrangian multipliers
         self.lam_P = {}
@@ -287,6 +283,36 @@ class Algorithm():
         self.lam_I_shr = {}
         self.lam_V_shr = {}
 
+        # shared state without lambda
+        self.P_shr = {}
+        self.Q_shr = {}
+        self.I_shr = {}
+        self.V_shr = {}
+
+        # average of the previous state with the shared state mult by lam
+        self.lam_P_av = {}
+        self.lam_Q_av = {}
+        self.lam_I_av = {}
+        self.lam_V_av = {}
+
+        # self's previous shared values:
+        self.prevP = {}
+        self.prevQ = {}
+        self.prevI = {}
+        self.prevV0 = {}
+        self.prevV1 = {}
+
+        # y values
+        self.yP = {}
+        self.yQ = {}
+        self.yI = {}
+        self.yV0 = {}
+        self.yV1 = {}
+
+        # dict of loads
+        self.P = {}
+        self.Q = {}
+
         if DEBUG:
             print(
                 f"Initialized group {self.group} with\n",
@@ -298,6 +324,26 @@ class Algorithm():
 
     def build(self):
         constraints = []
+
+        P_nom = [0.0, 0.0, 0.0, 0.0, 0.5456991, 0.8934548999999999, 0.4053246, 4.0337757000000005, 0.3709854000000001,
+                 2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003,
+                 0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752,
+                 0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182,
+                 0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199,
+                 0.0,
+                 0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
+        Q_nom = [0.0, 0.0, 0.0, 0.0, 0.40927440000000004, 0.6700910999999999, 0.3039264, 2.9246367, 0.5024061, 1.500165,
+                 1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001,
+                 0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996,
+                 0.0,
+                 0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496,
+                 0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566,
+                 0.591066, 0.4432955, 0.0]
+        for i in range(48):
+            self.P[i] = cp.Parameter(value=P_nom[i])
+            self.Q[i] = cp.Parameter(value=Q_nom[i])
+
+
 
         for i in self.buses + self.neighbors:
             if i not in generators:
@@ -339,8 +385,8 @@ class Algorithm():
 
             # Active and reactive power balance
             # The terms g_i*V and b_i*V are zero in this case
-            constraints += [-P[i] + self.p_gen[i] == Pij_out - Pij_in]
-            constraints += [-Q[i] + self.q_gen[i] == Qij_out - Qij_in]
+            constraints += [-self.P[i] + self.p_gen[i] == Pij_out - Pij_in]
+            constraints += [-self.Q[i] + self.q_gen[i] == Qij_out - Qij_in]
 
         self.z = {}
         for line in self.lines:
@@ -482,11 +528,10 @@ group = [None]*N
 warm_group = [None]*N
 for i in range(N):
     # group[i] = pickle.load(open(f'bin/group{i}_new.pickle', 'rb'))
-    print(f"pickle value: {group[i].p_gen[generators[i]].value[()]}")
+    # print(f"pickle value: {group[i].p_gen[generators[i]].value[()]}")
     group[i] = Algorithm(i, bus_groups[i])
     group[i].build()
 
-print(group[0])
 
 def set_loads(msg):
     global group
@@ -565,8 +610,8 @@ async def main():
         if g.group == node_id:
             continue
         else:
-            for b in group[node_id].buses:
-                if b in g.buses:
+            for line in group[node_id].neighbor_lines:
+                if line in g.neighbor_lines:
                     neigh_msg_counter[g.group] = 0
                     msg_q[g.group] = []
                     break
@@ -652,7 +697,7 @@ async def main():
 
             conv_msg = {}
             conv_msg['diff'] = (s2-s1) ** 2
-            conv_msg['pgen'] = group[node_id].prob.objective.value
+            conv_msg['pgen'] = group[node_id].p_gen[generators[node_id]].value[()]
             conv_msg['qgen'] = group[node_id].q_gen[generators[node_id]].value[()]
             conv_msg['gen'] = generators[node_id]
             for b in group[node_id].buses:
