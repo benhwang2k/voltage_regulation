@@ -14,199 +14,244 @@ class Algorithm():
 
     # Constructor for group 6
     def __init__(self, nodes, neighbors, lines, neighbor_lines, generator):
-        self.solver = "MOSEK"
+        n = len(nodes) + len(neighbors)
+        buses = nodes + neighbors
         self.nodes = nodes
         self.neighbors = neighbors
         self.lines = lines
         self.neighbor_lines = neighbor_lines
         self.generator = generator
-        self.active_injection_constraints = {}
-        self.reactive_injection_constraints = {}
-        self.line_constraints = {}
-
-        self.lam = {}
-
-        self.Y = pickle.load(open("Line_Ymatrix.pickle", "rb")) * (12470.*12470./1000000.)
-        allnodes = self.neighbors + self.nodes
-
-        # initialze constraints
-        for node in self.nodes:
-            if node != self.generator:
-                self.active_injection_constraints[node] = (0,0)
-                self.reactive_injection_constraints[node] = (0,0)
-            else:
-                self.active_injection_constraints[node] = (-100, 100)
-                self.reactive_injection_constraints[node] = (-100, 100)
-
-        for line in self.lines:
-            self.line_constraints[line] = 10000000
-
-
-        # Construct A_i for each node i in the group
-        # also Construct A_ik for each line (i,k) in the group
-        n = len(self.nodes) + len(self.neighbors)
-        buses = self.nodes + self.neighbors
-        # assign each node an self.index
-        self.index = {}
-        count = 0
-        for node in buses:
-            self.index[node] = count
-            count += 1
-        # construct matricies from the dictionary mapping two nodes to the bus admittance matrix entry
-        Y = np.array(np.zeros((n, n), dtype=complex))
+        self.Y = np.array(pickle.load(open("Line_Ymatrix.pickle", "rb")) * (12470. * 12470. / 1000000.))
+        self.r = np.array(np.zeros((48,48)))
+        self.x = np.array(np.zeros((48,48)))
+        self.g = np.array(np.zeros((48, 1)))
+        self.b = np.array(np.zeros((48, 1)))
         for i in buses:
-            for k in buses:
-                Y[self.index[i]][self.index[k]] = self.Y[i][k]
+            for j in buses:
+                if i != j:
+                    y = -self.Y[i][j]
+                    self.r[i][j] = np.real(1/y)
+                    self.x[i][j] = np.imag(1/y)
+                    #print(f"line ({i},{j}) x: {self.x[i][j]}")
+                    #print(f"line ({i},{j}) r: {self.r[i][j]}")
+        for i in buses:
+            tot = 0.+0.j
+            for j in buses:
+                if i != j:
+                    tot += self.Y[i][j]
+            y = self.Y[i][i] + tot
+            self.r[i][i] = np.real(1/y)
+            self.x[i][i] = np.imag(1/y)
+            self.g[i] = np.real(y)
+            self.b[i] = -np.imag(y)
+            #print(f"line ({i},{i}) x: {self.x[i][i]}")
+            #print(f"line ({i},{i}) r: {self.r[i][i]}")
+            #print(f"node ({i}) g: {self.g[i]}")
+            #print(f"node ({i}) b: {self.b[i]}")
+            # print(f"Z = {self.r[i][i]} + i{self.x[i][i]}")
+            # print(f"Y = {self.g[i]} + i{self.b[i]}")
 
-        # Fmake Ai
-        self.A = {}
-        self.B = {}
-        for node in self.nodes:
-            E = np.array(np.zeros((n, n), dtype=complex))
-            E[self.index[node]][self.index[node]] = 1
-            A_temp = (0.5) * (np.transpose(np.conjugate(Y)) @ E + E @ Y)
-            B_temp = (1.0 / (2j)) * (np.transpose(np.conjugate(Y)) @ E - E @ Y)
-            self.A[node] = A_temp
-            self.B[node] = B_temp
+            # lagrangian multipliers
+            self.lam_active = {}
+            self.lam_reactive = {}
+            self.shared_active = {}
+            self.shared_reactive = {}
+            self.flow_active = {}
+            self.flow_reactive = {}
+            for line in self.neighbor_lines:
+                self.flow_reactive[line] = 0
+                self.flow_active[line] = 0
+                self.lam_active[line] = 0
+                self.lam_reactive[line] = 0
+                self.shared_active[line] = 0
+                self.shared_reactive[line] = 0
 
-        # For each line make Aik
-        self.A_line = {}
-        for line in self.lines:
-            Yik = self.Y[line[0]][line[1]]
-            A_temp = np.array(np.zeros((n, n), dtype=complex))
-            for l in range(n):
-                for m in range(n):
-                    if l == m and m == self.index[line[1]]:
-                        A_temp[l][m] = np.real(Yik)
-                    elif l == self.index[line[1]] and m == k:
-                        A_temp[l][m] = (-Yik) / 2
-                    elif l == k and m == self.index[line[1]]:
-                        A_temp[l][m] = (-np.transpose(np.conjugate(Yik))) / 2
-                    else:
-                        A_temp[l][m] = 0
-            self.A_line[line] = A_temp
-    
-    def set_net_load(self, load_act, load_react, cap_act, cap_react):
-        # construct map and matricies
-        for node in self.nodes:
-            self.active_injection_constraints[node] = (load_act[node] - cap_act[node], load_act[node] + cap_act[node])
-            self.reactive_injection_constraints[node] = (load_react[node] - cap_react[node], load_react[node] + cap_react[node])
+    def update_shared_powers(self, shared_active, shared_reactive):
+        for line in shared_active:
+            self.shared_active[line] = shared_active[line]
+            self.shared_reactive[line] = shared_reactive[line]
+
+    def update_lam(self, alpha):
+        tot = 0
+        for line in self.neighbor_lines:
+            self.lam_active[line] += alpha * (self.flow_active[line] - self.shared_active[line])
+            self.lam_reactive[line] += alpha * (self.flow_reactive[line] - self.shared_reactive[line])
+            tot += abs(self.flow_active[line] - self.shared_active[line])
+            tot += abs(self.flow_reactive[line] - self.shared_reactive[line])
+            #if line == (0,1) :
+                #print(f"line {line} has calculated active power : {self.flow_active[line]} and {self.shared_active[line]}, difference = {self.flow_active[line] - self.shared_active[line]}")
+                #print(f"line {line} has calculated reactive power : {self.flow_reactive[line]} and {self.shared_reactive[line]}, difference = {self.flow_reactive[line] - self.shared_reactive[line]}")
+        return tot
 
 
+    def set_lam(self, other_lam_active, other_lam_reactive):
+        for key in self.lam_active:
+            self.lam_active[key] = other_lam_active[key]
+            self.lam_reactive[key] = other_lam_reactive[key]
+
+    def set_net_load(self, load_act, load_react):
+        self.load_act = load_act
+        self.load_react = load_react
+
+    def print_params(self):
+        for line in self.neighbor_lines:
+            print(f"active power in line {line} is {self.flow_active[line]}")
+            print(f"shared active power in line {line} is {self.shared_active[line]}")
+            print(f"lambda active power in line {line} is {self.lam_active[line]}")
+            print(f"reactive power in line {line} is {self.flow_reactive[line]}")
+            print(f"shared reactive power in line {line} is {self.shared_reactive[line]}")
+            print(f"lambda reactive power in line {line} is {self.lam_reactive[line]}")
 
 
-    def update_lambda(self, alpha, index_i, W_i, index_k, W_k):
-        lam = {}
-        # create a list of shared nodes
-        shared_nodes = []
-        for node in index_i:
-            if node in index_k:
-                shared_nodes += [node]
-
-        # check for edges
-        for i in shared_nodes:
-            for k in shared_nodes:
-                if (i,k) in self.lines:
-                    # if this is a line in the network, update the associated lambda
-                    print(f'line: ({i},{k}), Wi {W_i[index_i[i]][index_i[k]]}, Wk {W_k[index_k[i]][index_k[k]]}, differenc: {W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]]}')
-
-                    lam_ik = self.lam[(i,k)][0] + alpha * (W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]])
-                    lam_ki = self.lam[(i, k)][1] + alpha * (W_k[index_k[i]][index_k[k]] - W_i[index_i[i]][index_i[k]])
-                    self.lam[(i,k)] = (abs(lam_ik), abs(lam_ki))
-                    lam[(i,k)] = self.lam[(i,k)]
-                    #print(f'edge: {(i,k)}, lam: {lam[(i,k)]}')
-        return lam
-
-    def set_lambda(self, key, value):
-        self.lam[key] = value
-
-    def set_power_constraints(self, P_up, P_low, Q_up, Q_low, P_line):
-        self.P_up = P_up
-        self.P_low = P_low
-        self.Q_up = P_up
-        self.Q_low = Q_low
-        self.P_line = P_line
-
-    def calculate_multi(self, v, W_shared):
-        # n is the total number of buses including neighbors -> buses
+    def calculate_multi(self):
         n = len(self.nodes) + len(self.neighbors)
         buses = self.nodes + self.neighbors
 
-        # use (13) as the objective function and (12) as constraints without f, g
+        p_gen = cp.Variable()
+        q_gen = cp.Variable()
+        constraints = [p_gen <= 1000]
+        constraints += [q_gen <= 1000]
+        constraints += [p_gen >= -1000]
+        constraints += [q_gen >= -1000]
 
-        # optimization variable is n by b and a positive semi definite
-        W = cp.Variable((n, n), PSD=True)
+        #voltages squared
+        V = {}
+        #currents squared
+        I = {}
+        # Powers
+        Pij = {}
+        Qij = {}
+        #
+        pp_vio = {}
+        pn_vio = {}
+        qp_vio = {}
+        qn_vio = {}
+        vp_vio = {}
+        vn_vio = {}
 
-        # list of constraints
-        constraints = []
+        for i in buses:
+            V[i] = cp.Variable()
+            constraints += [V[i] >= 0.5]
+            constraints += [V[i] <= 1.5]
 
-        # This constrains the voltage at all buses even the neighbors
-        for node in buses:
-            constraints += [(W[self.index[node]][self.index[node]] <= (v[node]+0.05) * (v[node]+0.05))]
-            constraints += [(W[self.index[node]][self.index[node]] >= (v[node]-0.05) * (v[node]-0.05))]
+        for line in self.lines:
+            I[line] = cp.Variable()
+            Pij[line] = cp.Variable()
+            Qij[line] = cp.Variable()
+            # P[line]
+            # Z = self.r[line[0]][line[1]] + 1j*(self.x[line[0]][line[1]])
+            # S[line] = Z*I[line]
+            # P[line] = cp.real(S[li])
 
-        #constrain the power injection Only for the nodes that are in the group (i.e. not the neighbors)
-        constraints += [(cp.real(cp.trace(self.A[node] @ W)) <= self.active_injection_constraints[node][1]) for node in self.nodes]
-        constraints += [(cp.real(cp.trace(self.A[node] @ W)) >= self.active_injection_constraints[node][0]) for node in self.nodes]
-        constraints += [(cp.real(cp.trace(self.B[node] @ W)) <= self.reactive_injection_constraints[node][1]) for node in self.nodes]
-        constraints += [(cp.real(cp.trace(self.B[node] @ W)) >= self.reactive_injection_constraints[node][0]) for node in self.nodes]
-
-        # For all lines including neighbor lines constrain the power flow
-        # for line in self.lines:
-        #     constraints += [(cp.abs(cp.trace(self.A_line[line] @ W)) <= self.line_constraints[line])]
-
-
-        # construct the objective function as per equations (13) from Alejandros paper mangled to fit (8)
-        f = []
         for node in self.nodes:
-            f.append(cp.real(cp.trace(self.A[node]@W)))
+
+            pp_vio[node] = cp.Variable()
+            pn_vio[node] = cp.Variable()
+            qp_vio[node] = cp.Variable()
+            qn_vio[node] = cp.Variable()
+            constraints += [pp_vio[node] >= 0]
+            constraints += [pn_vio[node] >= 0]
+            constraints += [qp_vio[node] >= 0]
+            constraints += [qn_vio[node] >= 0]
+
+            Pik = 0
+            Qik = 0
+
+            for line in self.lines:
+                if node == line[0]:
+                    Pik += Pij[line]
+                    Qik += Qij[line]
+                if node == line[1]:
+                    Pik += Pij[line] - self.r[line[0]][line[1]] * I[line]
+                    Qik += Qij[line] - self.x[line[0]][line[1]] * I[line]
+            if node == self.generator:
+                #print(f'generation balance constraint node: {node} ')
+                constraints += [V[node] == 1.0]
+                constraints += [-self.load_act[node] + p_gen == (Pik  - self.g[node] * V[node]) + pp_vio[node] - pn_vio[node]]
+                constraints += [-self.load_react[node] + q_gen == (Qik  - self.b[node] * V[node]) + qp_vio[node] - qn_vio[node]]
+            else:
+                #print(f"Load balance constraint node : {node}")
+                constraints += [-self.load_act[node] == (Pik  - self.g[node] * V[node])+ pp_vio[node] - pn_vio[node]]
+                constraints += [-self.load_react[node] == (Qik  - self.b[node] * V[node])+ qp_vio[node] - qn_vio[node]]
+
+
+        z = {}
+        pq = {}
+        Velem = {}
+        Ielem = {}
+        for line in self.lines:
+            vn_vio[line] = cp.Variable()
+            vp_vio[line] = cp.Variable()
+
+
+            constraints += [vp_vio[line] >= 0]
+            constraints += [vn_vio[line] >= 0]
+            r = self.r[line[0]][line[1]]
+            x = self.x[line[0]][line[1]]
+            constraints += [V[line[1]] == V[line[0]] - 2*(r*Pij[line] + x * Qij[line]) + (r*r + x*x)*I[line] + vp_vio[line] - vn_vio[line]]
+
+            # approximate constraint
+
+            # constraints += [I[line] >= cp.square(Pij[line]) + cp.square(Qij[line])]
+
+            # conic constraint
+            z[line] = cp.Variable(1)
+            pq[line] = cp.Variable(2)
+            Velem[line[0]] = cp.Variable(1)
+            Ielem[line] = cp.Variable(1)
+            constraints += [Velem[line[0]][0] == V[line[0]]]
+            constraints += [Ielem[line][0] == I[line]]
+            constraints += [pq[line][0] == Pij[line]]
+            constraints += [pq[line][1] == Qij[line]]
+            constraints += [cp.PowCone3D(Velem[line[0]], Ielem[line], z[line], 0.5)]
+            constraints += [cp.SOC(z[line], pq[line])]
+
+        f_obj = []
+        f_obj += [p_gen + 1000*(sum(vn_vio.values()) + sum(vp_vio.values())+ sum(pp_vio.values())+ sum(qp_vio.values())+ sum(pn_vio.values())+ sum(qn_vio.values()))]
+
+
         for line in self.neighbor_lines:
-            f.append(cp.real(cp.abs(self.lam[line][0]*(W[self.index[line[0]]][self.index[line[1]]]-W_shared[line][0])) + cp.abs(self.lam[line][1]*(W[self.index[line[0]]][self.index[line[1]]]-W_shared[line][1]))))
+            f_obj += [self.lam_active[line] * (Pij[line] - self.shared_active[line])]
+            f_obj += [self.lam_reactive[line] * (Qij[line] - self.shared_reactive[line])]
 
-        prob = cp.Problem(cp.Minimize(sum(f)), constraints)
+        prob = cp.Problem(cp.Minimize(sum(f_obj)), constraints)
+        prob.solve(verbose=False)
 
+        # print(f"pgen : {p_gen.value}")
+        # print(f"qgen : {q_gen.value}")
+        #
+        # for node in V:
+        #     print(f"voltage at node: {node} = {V[node].value}")
 
+        threshold = 1.0E-6
 
-        # SOLVE!!!!!!! if you have Mosek installed the  it will use that as default.
-        # Can use "prob.solve(verbose = True)" to see more stuff
-        if self.solver == "SCS":
-            prob.solve(solver=cp.SCS)
-        else:
-            try:
-                prob.solve()
-            except cp.error.SolverError:
-                print("ERROR SOlving", self.generator)
-                return (self.index, None, [], [])
+        for key in pp_vio:
+            if pp_vio[key].value > threshold:
+                print(f"ppvio node: {key} : {pp_vio[key].value}")
+        for key in pn_vio:
+            if pn_vio[key].value > threshold:
+                print(f"pnvio node: {key} : {pn_vio[key].value}")
+        for key in qp_vio:
+            if qp_vio[key].value > threshold:
+                print(f"qpvio node: {key} : {qp_vio[key].value}")
+        for key in qn_vio:
+            if qn_vio[key].value > threshold:
+                print(f"qnvio node: {key} : {qn_vio[key].value}")
+        for key in vp_vio:
+            if vp_vio[key].value > threshold:
+                print(f"vpvio node: {key} : {vp_vio[key].value}")
+        for key in vn_vio:
+            if vn_vio[key].value > threshold:
+                print(f"vnvio node: {key} : {vn_vio[key].value}")
 
-        # Print result.
-        # print("The optimal value is", prob.value)
-        # print("A solution W is")
-        # print(W.value)
+        shared_active = {}
+        shared_reactive = {}
+        for line in self.neighbor_lines:
+            shared_active[line] = Pij[line].value
+            self.flow_active[line] = Pij[line].value
+            shared_reactive[line] = Qij[line].value
+            self.flow_reactive[line] = Qij[line].value
 
-        # print metrics
-        # for node in self.nodes:
-        #     sat_act = (self.active_injection_constraints[node][0]<= np.real(np.trace(self.A[node] @ W.value))) and (self.active_injection_constraints[node][1]>= np.real(np.trace(self.A[node] @ W.value)))
-        #     sat_react = (self.reactive_injection_constraints[node][1] >= np.real(np.trace(self.B[node] @ W.value))) and  (self.reactive_injection_constraints[node][0] <= np.real(np.trace(self.B[node] @ W.value)))
-        #     #print(f"node: {node}, satisfied: {sat}, active inj: {np.real(np.trace(A[node] @ W.value))}, lower: {self.active_injection_constraints[node][0]} , upper: {self.active_injection_constraints[node][1]}")
-        #     if not (sat_act and sat_react):
-        #         print("-----------------")
-        #         print(f"node: {node}, active: {sat_act} , reactive: {sat_react}")
-        #         print(f"Constraints - active: ({self.active_injection_constraints[node][0]},{self.active_injection_constraints[node][1]}) | react: ({self.reactive_injection_constraints[node][0]},{self.reactive_injection_constraints[node][1]})")
-        #         print(f"values - active: {np.real(np.trace(self.A[node] @ W.value))} | reactive: {np.real(np.trace(self.B[node] @ W.value))}")
-
-        # Return W, and the power setpoints for each node
-        P = {}
-        Q = {}
-        if not (W.value is None):
-            for node in self.nodes:
-                P[node] = np.real(np.trace(self.A[node] @ W.value))
-                Q[node] = np.real(np.trace(self.B[node] @ W.value))
-                # print("----------------------")
-                # print("node: ", node)
-                # print("active: ", np.trace(A[node] @ W.value))
-                # print("reactive", np.trace(B[node]@W.value))
-        return (self.index, W.value, P, Q)
-
-
+        return (shared_active, shared_reactive)
 
 

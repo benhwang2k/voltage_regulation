@@ -26,9 +26,8 @@ class Algorithm():
         # shared lagrangian multipliers
         self.lam = {}
         for line in neighbor_lines:
-            rev_line = (line[1],line[0])
             self.lam[line] = 0.00001
-            self.lam[rev_line] = 0.00001
+
 
         # construct an index for this group
         # map: key=bus_number value=array index in A
@@ -63,20 +62,21 @@ class Algorithm():
         for node in index_i:
             if node in index_k:
                 shared_nodes += [node]
+                #print(f"node: {node}")
+                #print(f"Wi({node})({node}) = {W_i[index_i[node]][index_i[node]]}, Wk({node})({node}) = {W_k[index_k[node]][index_k[node]]} difference: {W_i[index_i[node]][index_i[node]]-W_k[index_k[node]][index_k[node]]}")
 
         # check for edges
         for i in shared_nodes:
             for k in shared_nodes:
-                if ((i,k) in self.lines) or ((k,i) in self.lines):
+                if ((i,k) in self.lines):
                     # if this is a line in the network, update the associated lambda
-                    print(
-                        f'line: ({i},{k}), Wi {W_i[index_i[i]][index_i[k]]}, Wk {W_k[index_k[i]][index_k[k]]}, differenc: {W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]]}')
-    
-                    lam_ik = self.lam[(i, k)] + alpha * (W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]])
-                    lam_ik = max(np.real(lam_ik), np.imag(lam_ik))
+                    print(f'line: ({i},{k}), Wi {W_i[index_i[i]][index_i[k]]}, Wk {W_k[index_k[i]][index_k[k]]}, differenc: {W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]]}')
+                    print()
+                    lam_ik = self.lam[(i, k)] + alpha * np.real(W_i[index_i[i]][index_i[k]] - W_k[index_k[i]][index_k[k]])
                     self.lam[(i, k)] = lam_ik
                     lam[(i, k)] = self.lam[(i, k)]
                     # print(f'edge: {(i,k)}, lam: {lam[(i,k)]}')
+        print("------------")
         return lam
 
     def set_lambda(self, key, value):
@@ -89,12 +89,18 @@ class Algorithm():
         # optimization variable
         W = cp.Variable((n, n), complex=True)
         # constraints
-        constraints = [ W >> 0]
+        constraints = []
+        for line in self.lines:
+            i = self.index[line[0]]
+            k = self.index[line[1]]
+            X = np.array([[W[i][i], W[i][k]],[W[k][i], W[k][k]]])
+            constraints += [X >> 0]
+        #constraints = [ W >> 0]
 
         f_obj = []
         for i in range(n):
-            constraints += [cp.real(W[i][i]) <= 1.05*1.05]
-            constraints += [cp.real(W[i][i]) >= 0.95*0.95]
+            constraints += [cp.real(W[i][i]) <= 1.001*1.001]
+            constraints += [cp.real(W[i][i]) >= 0.999*0.999]
 
         for node in self.nodes:
             # print(f"node: {node}, active load: {self.load_act[node]}, reactive load: {self.load_react[node]}, cap: {self.cap_react[node]}")
@@ -112,6 +118,7 @@ class Algorithm():
             constraints += [q_inj >= self.load_react[node] - self.cap_react[node]]
             f_obj += [p_inj]
 
+
         # for line in self.lines:
         #     i = line[0]
         #     k = line[1]
@@ -121,27 +128,24 @@ class Algorithm():
         #     constraints += [cp.abs(line_flow) <= 100000000]
 
         for line in self.neighbor_lines:
-            rev_line = (line[1],line[0])
             print(f"line: {line}")
             print(f"lamda = {self.lam[line]}")
             print(f"W_shared:  {W_shared[line]}")
-            diff = cp.abs(W[self.index[line[0]]][self.index[line[1]]] - W_shared[line])
-            diff_rev = cp.abs(W[self.index[line[1]]][self.index[line[0]]] - W_shared[rev_line])
-            # f_obj += [diff * self.lam[line]]
-            # f_obj += [diff_rev * self.lam[rev_line]]
+            diff = cp.real(W[self.index[line[0]]][self.index[line[1]]] - W_shared[line])
+            f_obj += [diff * self.lam[line]]
         
-        
+
         
         # construct the objective function as per equations (13) from Alejandros paper mangled to fit (8)
 
         # solve the optimization problem
         prob = cp.Problem(cp.Minimize(sum(f_obj)), constraints)
-        prob.solve(verbose=True)
+        prob.solve()
 
         # Print result.
         # print("The optimal value is", prob.value)
         # print("A solution W is")
-        # print(W.value)
+        print(W.value)
 
 
         return (self.index, W.value)

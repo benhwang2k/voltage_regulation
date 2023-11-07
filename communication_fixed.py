@@ -14,7 +14,7 @@ import sys
 
 writer = None
 reader = None
-node_id = 0
+node_id = 5
 neigh_msg_counter = {}
 converge_recieved = False
 all_converged = False
@@ -155,8 +155,8 @@ def handle_modbus(msg):
 
 
 
-DERP_IP = 'localhost'
-#DERP_IP = '100.108.10.106'
+DERP_IP = '137.110.125.108'
+# DERP_IP = 'localhost'
 DERP_PORT = 10000
 
 
@@ -171,9 +171,9 @@ bus_groups = [
     [7, 31, 33, 32, 47],
     [1, 6, 8, 9, 10, 22, 23, 24, 25, 26, 39, 40],
     [27, 35, 36, 37, 38],
-    [0, 2, 14, 15, 16, 17, 18, 19, 41, 42],
+    [0, 2, 3, 14, 15, 16, 17, 18, 19, 41, 42],
     [11, 12, 13, 28, 29, 30, 34],
-    [3, 4, 5, 20, 21, 43, 44, 45, 46],
+    [4, 5, 20, 21, 43, 44, 45, 46],
 ]
 
 N = len(bus_groups)
@@ -187,16 +187,16 @@ loads = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx",
                       sheet_name="Buses_new").to_numpy()
 
 
-P = [0.]*n
-Q = [0.]*n
-for i in buses:
-    P[loads[i+1][1]] = float(loads[i+1][5])/scale
-    Q[loads[i+1][1]] = float(loads[i+1][6])/scale
-    if not np.isnan(loads[i+1][9]):
-        P[loads[i+1][1]] -= float(loads[i+1][9])/scale
-
-P = [0.0, 0.0, 0.0, 0.0, 0.5456991, 0.8934548999999999, 0.4053246, 4.0337757000000005, 0.3709854000000001, 2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003, 0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752, 0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182, 0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199, 0.0, 0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
-Q = [0.0, 0.0, 0.0, 0.0, 0.40927440000000004, 0.6700910999999999, 0.3039264, 2.9246367, 0.5024061, 1.500165, 1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001, 0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996, 0.0, 0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496, 0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566, 0.591066, 0.4432955, 0.0]
+# P = [0.]*n
+# Q = [0.]*n
+# for i in buses:
+#     P[loads[i+1][1]] = float(loads[i+1][5])/scale
+#     Q[loads[i+1][1]] = float(loads[i+1][6])/scale
+#     if not np.isnan(loads[i+1][9]):
+#         P[loads[i+1][1]] -= float(loads[i+1][9])/scale
+#
+# P = [0.0, 0.0, 0.0, 0.0, 0.5456991, 0.8934548999999999, 0.4053246, 4.0337757000000005, 0.3709854000000001, 2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003, 0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752, 0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182, 0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199, 0.0, 0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
+# Q = [0.0, 0.0, 0.0, 0.0, 0.40927440000000004, 0.6700910999999999, 0.3039264, 2.9246367, 0.5024061, 1.500165, 1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001, 0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996, 0.0, 0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496, 0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566, 0.591066, 0.4432955, 0.0]
 
 
 network = pd.read_excel("UCSDmicrogrid_iCorev3_info.xlsx",
@@ -229,9 +229,9 @@ for i in buses:
     b[i] = -np.imag(y)
 
 
-alpha_P = 2e-4
-alpha_Q = 2e-4
-alpha_I = 2e-9
+alpha_P = 1e-3
+alpha_Q = 1e-3
+alpha_I = 3e-11
 alpha_V = 2e-3
 
 
@@ -254,15 +254,11 @@ class Algorithm():
                 self.neighbor_lines += [line]
                 self.neighbors += [line[0]]
 
-        # dict of loads
-        self.P = {}
-        self.Q = {}
-
         # Decision variables are stored here for easy access
         # before and after solving the model
 
         # Voltage squared
-        self.V = [1.]*48
+        self.V = [1.] * 48
 
         # Current squared
         self.I = {}
@@ -272,8 +268,8 @@ class Algorithm():
         self.Qij = {}
 
         # Power generation
-        self.p_gen = [0.]*48
-        self.q_gen = [0.]*48
+        self.p_gen = [0.] * 48
+        self.q_gen = [0.] * 48
 
         # Lagrangian multipliers
         self.lam_P = {}
@@ -281,20 +277,41 @@ class Algorithm():
         self.lam_I = {}
         self.lam_V = {}
 
-        # record values from previous iteration
-        self.prev_I = {}
-        self.prev_V = {}
-
         # Shared (coupled) state
         self.lam_P_shr = {}
         self.lam_Q_shr = {}
         self.lam_I_shr = {}
         self.lam_V_shr = {}
 
+        # shared state without lambda
+        self.P_shr = {}
+        self.Q_shr = {}
         self.I_shr = {}
         self.V_shr = {}
 
+        # average of the previous state with the shared state mult by lam
+        self.lam_P_av = {}
+        self.lam_Q_av = {}
+        self.lam_I_av = {}
+        self.lam_V_av = {}
 
+        # self's previous shared values:
+        self.prevP = {}
+        self.prevQ = {}
+        self.prevI = {}
+        self.prevV0 = {}
+        self.prevV1 = {}
+
+        # y values
+        self.yP = {}
+        self.yQ = {}
+        self.yI = {}
+        self.yV0 = {}
+        self.yV1 = {}
+
+        # dict of loads
+        self.P = {}
+        self.Q = {}
 
         if DEBUG:
             print(
@@ -307,27 +324,26 @@ class Algorithm():
 
     def build(self):
         constraints = []
-        # for i in buses:
-        #     self.P[loads[i + 1][1]] = cp.Parameter(value=float(loads[i + 1][5]) / scale)
-        #     self.Q[loads[i + 1][1]] = cp.Parameter(value=float(loads[i + 1][6]) / scale)
-        #     if not np.isnan(loads[i + 1][9]):
-        #         self.P[loads[i + 1][1]].value -= float(loads[i + 1][9]) / scale
 
         P_nom = [0.0, 0.0, 0.0, 0.0, 0.5456991, 0.8934548999999999, 0.4053246, 4.0337757000000005, 0.3709854000000001,
-             2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003,
-             0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752,
-             0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182,
-             0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199, 0.0,
-             0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
+                 2.20467, 1.3755114000000002, 0.016491552, 0.0, 0.0, 0.019836216, 0.03126764, 0.0036618460000000003,
+                 0.01630485, 0.00394044, 0.006545634000000001, 0.394044, 0.0, 0.4783635, 0.3877464, 0.5786881, 1.284752,
+                 0.2581329, 0.0, 0.040866753, 0.018872922, 0.021672420000000005, 1.6243005000000001, 1.576176, 1.199182,
+                 0.011295246000000002, 0.295533, 0.197022, 2.0987310000000003, 0.848088, 0.31702199999999997, 0.755199,
+                 0.0,
+                 0.0200022, 0.0, 0.878088, 0.788088, 0.525066, 0.0]
         Q_nom = [0.0, 0.0, 0.0, 0.0, 0.40927440000000004, 0.6700910999999999, 0.3039264, 2.9246367, 0.5024061, 1.500165,
-             1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001,
-             0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996, 0.0,
-             0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496,
-             0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566,
-             0.591066, 0.4432955, 0.0]
+                 1.0316334, 0.012368672999999998, 0.0, 0.0, 0.014787042, 0.02345073, 0.003786606, 0.013923630000000001,
+                 0.00295533, 0.003930924000000001, 0.295533, 0.0, 0.3587727, 0.2908098, 0.680316, 0.963564, 0.1935996,
+                 0.0,
+                 0.030542064, 0.015078693, 0.01625432, 1.2128253, 1.182132, 0.886599, 0.007574913, 0.2216496,
+                 0.14776499999999998, 1.574048, 0.636066, 0.23776650000000002, 0.561, 0.0, 0.01500165, 0.0, 0.658566,
+                 0.591066, 0.4432955, 0.0]
         for i in range(48):
             self.P[i] = cp.Parameter(value=P_nom[i])
             self.Q[i] = cp.Parameter(value=Q_nom[i])
+
+
 
         for i in self.buses + self.neighbors:
             if i not in generators:
@@ -337,17 +353,16 @@ class Algorithm():
             else:
                 self.p_gen[i] = cp.Variable()
                 self.q_gen[i] = cp.Variable()
-                if i != 13:
+                if i == 13:
+                    constraints += [self.p_gen[i] <= 0.25]
+                    constraints += [self.p_gen[i] >= -0.25]
+                    constraints += [self.q_gen[i] <= 0.25]
+                    constraints += [self.q_gen[i] >= -0.25]
+                else:
                     constraints += [self.p_gen[i] <= 2000]
                     constraints += [self.q_gen[i] <= 2000]
                     constraints += [self.p_gen[i] >= -2000]
                     constraints += [self.q_gen[i] >= -2000]
-                else:
-                    constraints += [self.p_gen[i] <= 0.25]
-                    constraints += [self.q_gen[i] <= 0.25]
-                    constraints += [self.p_gen[i] >= -0.25]
-                    constraints += [self.q_gen[i] >= -0.25]
-
 
         for line in self.lines:
             self.I[line] = cp.Variable()
@@ -359,7 +374,6 @@ class Algorithm():
             Qij_out = 0
             Pij_in = 0
             Qij_in = 0
-
 
             for line in self.lines:
                 if i == line[0]:
@@ -402,13 +416,9 @@ class Algorithm():
                 cp.vstack([self.Pij[line], self.Qij[line]])
             )]
 
-        f_obj = sum(self.p_gen)
+        f_obj = sum([self.I[line]*r[line[0]][line[1]] for line in self.lines])
 
         for line in self.neighbor_lines:
-            self.prev_I[line] = cp.Parameter(value=0)
-            self.prev_V[line[0]] = cp.Parameter(value=0)
-            self.prev_V[line[1]] = cp.Parameter(value=0)
-
             self.lam_P[line] = cp.Parameter(value=0)
             self.lam_Q[line] = cp.Parameter(value=0)
             self.lam_I[line] = cp.Parameter(value=0)
@@ -420,24 +430,27 @@ class Algorithm():
             self.lam_V_shr[line[0]] = cp.Parameter(value=0)
             self.lam_V_shr[line[1]] = cp.Parameter(value=0)
 
+            self.P_shr[line] = cp.Parameter(value=0)
+            self.Q_shr[line] = cp.Parameter(value=0)
             self.I_shr[line] = cp.Parameter(value=0)
             self.V_shr[line[0]] = cp.Parameter(value=0)
             self.V_shr[line[1]] = cp.Parameter(value=0)
-            self.prev_I[line] = cp.Parameter(value=0)
-            self.prev_V[line[0]] = cp.Parameter(value=0)
-            self.prev_V[line[1]] = cp.Parameter(value=0)
+
+            self.lam_P_av[line] = cp.Parameter(value=0)
+            self.lam_Q_av[line] = cp.Parameter(value=0)
+            self.lam_I_av[line] = cp.Parameter(value=0)
+            self.lam_V_av[line[0]] = cp.Parameter(value=0)
+            self.lam_V_av[line[1]] = cp.Parameter(value=0)
 
             lambdas = [
-                # self.lam_P[line] * self.Pij[line] - self.lam_P_shr[line],
-                # self.lam_Q[line] * self.Qij[line] - self.lam_Q_shr[line],
-                # self.lam_I[line] * self.I[line] - self.lam_I_shr[line],
-                # self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_shr[line[0]],
-                # self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_shr[line[1]],
-
-                cp.abs(self.lam_I[line] * self.I[line] - self.lam_I_shr[line]),
-                cp.abs(self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_shr[line[0]]),
-                cp.abs(self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_shr[line[1]]),
+                self.lam_P[line] * self.Pij[line] - self.lam_P_av[line],
+                self.lam_Q[line] * self.Qij[line] - self.lam_Q_av[line],
+                self.lam_I[line] * self.I[line] -  self.lam_I_av[line],
+                self.lam_V[line[0]] * self.V[line[0]] - self.lam_V_av[line[0]],
+                self.lam_V[line[1]] * self.V[line[1]] - self.lam_V_av[line[1]],
             ]
+
+
 
             f_obj += sum(lambdas)
 
@@ -445,6 +458,7 @@ class Algorithm():
 
     def update_lambdas(self, neighbors, update_vals=False):
         for line in self.neighbor_lines:
+
             for neighbor in neighbors:
                 if line not in neighbor.lines:
                     continue
@@ -454,23 +468,38 @@ class Algorithm():
                 # disciplined parameterized program (DPP) which is
                 # required for CVX to cache the program structure
                 # between solves.
-                self.lam_P[line].value += alpha_P * (self.Pij[line].value - neighbor.Pij[line].value)
-                self.lam_Q[line].value += alpha_Q * (self.Qij[line].value - neighbor.Qij[line].value)
-                self.lam_I[line].value += alpha_I * (self.I[line].value - neighbor.I[line].value)
-                self.lam_V[line[0]].value += alpha_V * (self.V[line[0]].value - neighbor.V[line[1]].value)
-                self.lam_V[line[1]].value += alpha_V * (self.V[line[1]].value - neighbor.V[line[0]].value)
+
+                self.lam_P[line].value += alpha_P * (
+                            self.Pij[line].value - (self.Pij[line].value + neighbor.Pij[line].value) / 2)
+                self.lam_Q[line].value += alpha_Q * (
+                            self.Qij[line].value - (self.Qij[line].value + neighbor.Qij[line].value) / 2)
+                self.lam_I[line].value += alpha_I * (
+                            self.I[line].value - (self.I[line].value + neighbor.I[line].value) / 2)
+                self.lam_V[line[0]].value += alpha_V * (
+                            self.V[line[0]].value - (self.V[line[0]].value + neighbor.V[line[1]].value) / 2)
+                self.lam_V[line[1]].value += alpha_V * (
+                            self.V[line[1]].value - (self.V[line[1]].value + neighbor.V[line[0]].value) / 2)
 
                 if update_vals:
-                    self.lam_P_shr[line].value = self.lam_P[line].value*neighbor.Pij[line].value
-                    self.lam_Q_shr[line].value = self.lam_Q[line].value*neighbor.Qij[line].value
-                    self.lam_I_shr[line].value = self.lam_I[line].value*neighbor.I[line].value
-                    self.lam_V_shr[line[0]].value = self.lam_V[line[0]].value*neighbor.V[line[0]].value
-                    self.lam_V_shr[line[1]].value = self.lam_V[line[1]].value*neighbor.V[line[1]].value
-
-                    self.I_shr[line].value = neighbor.I[line].value
+                    self.P_shr[line].value = neighbor.Pij[line].value
+                    self.Q_shr[line].value = neighbor.Pij[line].value
+                    self.I_shr[line].value = neighbor.Pij[line].value
                     self.V_shr[line[0]].value = neighbor.V[line[0]].value
                     self.V_shr[line[1]].value = neighbor.V[line[1]].value
 
+                    self.lam_P_shr[line].value += self.lam_P[line].value * neighbor.Pij[line].value
+                    self.lam_Q_shr[line].value = self.lam_Q[line].value * neighbor.Qij[line].value
+                    self.lam_I_shr[line].value = self.lam_I[line].value * neighbor.I[line].value
+                    self.lam_V_shr[line[0]].value = self.lam_V[line[0]].value * neighbor.V[line[0]].value
+                    self.lam_V_shr[line[1]].value = self.lam_V[line[1]].value * neighbor.V[line[1]].value
+
+                self.lam_P_av[line].value = self.lam_P[line].value * (self.Pij[line].value + self.P_shr[line].value) / 2
+                self.lam_Q_av[line].value = self.lam_Q[line].value * (self.Qij[line].value + self.Q_shr[line].value) / 2
+                self.lam_I_av[line].value = self.lam_I[line].value * (self.I[line].value + self.I_shr[line].value) / 2
+                self.lam_V_av[line[0]].value = self.lam_V[line[0]].value * (
+                            self.V[line[0]].value + self.V_shr[line[0]].value) / 2
+                self.lam_V_av[line[1]].value = self.lam_V[line[1]].value * (
+                            self.V[line[1]].value + self.V_shr[line[1]].value) / 2
 
     def solve(self):
         self.prob.solve(
@@ -498,16 +527,14 @@ def test_centralized():
 group = [None]*N
 warm_group = [None]*N
 for i in range(N):
-    group[i] = pickle.load(open(f'bin/group{i}_new.pickle', 'rb'))
+    # group[i] = pickle.load(open(f'bin/group{i}_new.pickle', 'rb'))
     # print(f"pickle value: {group[i].p_gen[generators[i]].value[()]}")
-    # group[i] = Algorithm(i, bus_groups[i])
-    # group[i].build()
+    group[i] = Algorithm(i, bus_groups[i])
+    group[i].build()
 
-print(group[0])
-t = 0
-t_start = 0
+
 def set_loads(msg):
-    global group, t_start ,t
+    global group
     ''' set the loads of the groups to the new ones'''
     #pickle the nodes
     # file_name = f"bin/group{node_id}_new.pickle"
@@ -516,7 +543,6 @@ def set_loads(msg):
     # pickle.dump(group[node_id], open(f"bin/group{node_id}_other.pickle", 'wb'))
     # print(f"pgen_group{node_id} is {group[node_id].p_gen[generators[node_id]]}")
     print(f"group {node_id} recieved new loads")
-    t_start = t
     ploads = msg['ploads']
     qloads = msg['qloads']
     for g in range(N):
@@ -573,36 +599,73 @@ async def send_params(t):
     if not await broadcast(msg):
         await connect_derp(DERP_IP, DERP_PORT)
 
+def is_fixed():
+    total = 0
+    for line in group[node_id].neighbor_lines:
+        for j in range(len(group)):
+            if j != node_id:
+                if line in group[j].neighbor_lines:
+                    if (group[node_id].Pij[line].value is None) or (group[j].Pij[line].value is None):
+                        return False
+                    print(f"me = {node_id} you = {j}, line = {line}")
+                    print(f"--------- \n ME:{group[node_id].Pij[line].value}")
+                    print(f"--------- \n YOU:{group[j].Pij[line].value}")
+                    total += abs(group[node_id].Pij[line].value - group[j].Pij[line].value)
+                    total += abs(group[node_id].Qij[line].value - group[j].Qij[line].value)
+                    total += abs(group[node_id].I[line].value - group[j].I[line].value)
+                    total += abs(group[node_id].V[line[0]].value - group[j].V[line[0]].value)
+                    total += abs(group[node_id].V[line[1]].value - group[j].V[line[1]].value)
+    if total <= 0.5:
+        print(f"*********** \n FIXED \n **************")
+        return True
+    else:
+        return False
+
 
 async def main():
-    global reader, writer, all_converged, neigh_msg_counter, msg_q, msg_iteration, rec_iteration, start, t, t_start
+    global reader, writer, all_converged, neigh_msg_counter, msg_q, msg_iteration, rec_iteration, start
+    # Each node keeps track of which nodes are its neighbors and creates a counter for each neighbor
 
-    if node_id == 0:
-        neigh_msg_counter[1] = 0
-        msg_q[1] = []
-    elif node_id == 1:
-        neigh_msg_counter[0] = 0
-        neigh_msg_counter[2] = 0
-        neigh_msg_counter[3] = 0
-        msg_q[0] = []
-        msg_q[2] = []
-        msg_q[3] = []
-    elif node_id == 2:
-        neigh_msg_counter[1] = 0
-        msg_q[1] = []
-    elif node_id == 3:
-        neigh_msg_counter[1] = 0
-        neigh_msg_counter[4] = 0
-        neigh_msg_counter[5] = 0
-        msg_q[1] = []
-        msg_q[4] = []
-        msg_q[5] = []
-    elif node_id == 4:
-        neigh_msg_counter[3] = 0
-        msg_q[3] = []
-    elif node_id == 5:
-        neigh_msg_counter[3] = 0
-        msg_q[3] = []
+    # my group = node_id
+    # all groups are collected in list group
+    for g in group:
+        if g.group == node_id:
+            continue
+        else:
+            for line in group[node_id].neighbor_lines:
+                if line in g.neighbor_lines:
+                    neigh_msg_counter[g.group] = 0
+                    msg_q[g.group] = []
+                    break
+
+    #
+    # if node_id == 0:
+    #     neigh_msg_counter[1] = 0
+    #     msg_q[1] = []
+    # elif node_id == 1:
+    #     neigh_msg_counter[0] = 0
+    #     neigh_msg_counter[2] = 0
+    #     neigh_msg_counter[3] = 0
+    #     msg_q[0] = []
+    #     msg_q[2] = []
+    #     msg_q[3] = []
+    # elif node_id == 2:
+    #     neigh_msg_counter[1] = 0
+    #     msg_q[1] = []
+    # elif node_id == 3:
+    #     neigh_msg_counter[1] = 0
+    #     neigh_msg_counter[4] = 0
+    #     neigh_msg_counter[5] = 0
+    #     msg_q[1] = []
+    #     msg_q[4] = []
+    #     msg_q[5] = []
+    # elif node_id == 4:
+    #     neigh_msg_counter[3] = 0
+    #     msg_q[3] = []
+    # elif node_id == 5:
+    #     neigh_msg_counter[3] = 0
+    #     msg_q[3] = []
+
     for key in neigh_msg_counter:
         msg_iteration[key] = 0
         rec_iteration[key] = -1
@@ -621,30 +684,18 @@ async def main():
         # solve
         s1 = 0
         s2 = 0
-
+        t = 0
         all_converged = False
         while True:
             # read messages from all neighbors
             # keep counter for each node (+1 when you send a message) (-1 when you recieve)
             # if all counters <= 0 then go to next iteration
             s2 = s1
-
-            if t - t_start < 150:
-                alpha_P = 2e-4
-                alpha_Q = 2e-4
-                alpha_I = 2e-8
-                alpha_V = 2e-3
+            if (not is_fixed()) or t < 0:
+                print(f"solved!")
+                group[node_id].solve()
             else:
-                alpha_P = 2e-5
-                alpha_Q = 2e-5
-                alpha_I = 2e-11
-                alpha_V = 2e-5
-
-            group[node_id].solve()
-            # for line in group[node_id].neighbor_lines:
-            #     group[node_id].prev_I[line].value = group[node_id].I[line].value
-            #     group[node_id].prev_V[line[0]].value = group[node_id].V[line[0]].value
-            #     group[node_id].prev_V[line[1]].value = group[node_id].V[line[1]].value
+                print(f"group {node_id} fixed at iter {t}")
 
 
             for neighbor in neigh_msg_counter:
@@ -672,7 +723,7 @@ async def main():
 
             conv_msg = {}
             conv_msg['diff'] = (s2-s1) ** 2
-            conv_msg['pgen'] = group[node_id].prob.objective.value
+            conv_msg['pgen'] = group[node_id].p_gen[generators[node_id]].value[()]
             conv_msg['qgen'] = group[node_id].q_gen[generators[node_id]].value[()]
             conv_msg['gen'] = generators[node_id]
             for b in group[node_id].buses:

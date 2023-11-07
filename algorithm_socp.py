@@ -72,12 +72,17 @@ class Algorithm():
             self.shared_reactive[line] = shared_reactive[line]
 
     def update_lam(self, alpha):
+        tot = 0
         for line in self.neighbor_lines:
             self.lam_active[line] += alpha * (self.flow_active[line] - self.shared_active[line])
             self.lam_reactive[line] += alpha * (self.flow_reactive[line] - self.shared_reactive[line])
-            if line == (0,1) :
-                print(f"line {line} has calculated active power : {self.flow_active[line]} and {self.shared_active[line]}, difference = {self.flow_active[line] - self.shared_active[line]}")
+            tot += abs(self.flow_active[line] - self.shared_active[line])
+            tot += abs(self.flow_reactive[line] - self.shared_reactive[line])
+            #if line == (0,1) :
+                #print(f"line {line} has calculated active power : {self.flow_active[line]} and {self.shared_active[line]}, difference = {self.flow_active[line] - self.shared_active[line]}")
                 #print(f"line {line} has calculated reactive power : {self.flow_reactive[line]} and {self.shared_reactive[line]}, difference = {self.flow_reactive[line] - self.shared_reactive[line]}")
+        return tot
+
 
     def set_lam(self, other_lam_active, other_lam_reactive):
         for key in self.lam_active:

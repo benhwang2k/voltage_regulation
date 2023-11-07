@@ -405,7 +405,8 @@ def test_centralized():
 
     group_all.solve()
 
-    print(f"Total generation: {[group_all.p_gen[generators[i]].value[()] for i in range(6)]}")
+    print(f"Total generation: {sum([group_all.p_gen[generators[i]].value[()] for i in range(6)])}")
+
     for i in range(6):
         print(f"centralized generation at bus{generators[i]} is {group_all.p_gen[generators[i]].value[()]}")
     return group_all
@@ -490,95 +491,96 @@ while sum([(e1 - e2)**2 for e1, e2 in zip(s1, s2)])**0.5 > 1e-6 and t < 1500:
     
     print(f"Iter: {t},  {[round(math.log10((e1 - e2)**2)) for e1, e2 in zip(s1, s2)]}", end ='\r' )#[str(g.prob.objective.value)[0:10] for g in group], end='\r')
     t = t + 1
-print(f"t: {t} Generation: {[group[i].p_gen[generators[i]].value[()] for i in range(6)]}")
-shared_lines = [(0,1), (6,7), (10,27), (3,43), (41,28)]
-leg = [str(ln) for ln in shared_lines]
-diff_p = {}
-diff_q = {}
-diff_i = {}
-diff_v0 = {}
-diff_v1 = {}
-for line in shared_lines:
-    diff_p[line] = []
-    diff_q[line] = []
-    diff_i[line] = []
-    diff_v0[line] = []
-    diff_v1[line] = []
-for i in range(6):
-    j = i + 1
-    while j < 6:
-        for k in range(t):
-            for line in shared[i]:
-                if line in shared[j]:
-                    diff_p[line].append(abs(shared[i][line][k][0] - shared[j][line][k][0]))
-                    diff_q[line].append(abs(shared[i][line][k][1] - shared[j][line][k][1]))
-                    diff_i[line].append(abs(shared[i][line][k][2] - shared[j][line][k][2]))
-                    diff_v0[line].append(abs(shared[i][line][k][3] - shared[j][line][k][3]))
-                    diff_v1[line].append(abs(shared[i][line][k][4] - shared[j][line][k][4]))
-        j += 1
-test_name = "All rii with newest grouping 1"
-recstart = 0
-print(f"{test_name}")
+print(f"t: {t} Generation: {sum([group[i].p_gen[generators[i]].value[()] for i in range(6)])}")
+
+# shared_lines = [(0,1), (6,7), (10,27), (3,43), (41,28)]
+# leg = [str(ln) for ln in shared_lines]
+# diff_p = {}
+# diff_q = {}
+# diff_i = {}
+# diff_v0 = {}
+# diff_v1 = {}
+# for line in shared_lines:
+#     diff_p[line] = []
+#     diff_q[line] = []
+#     diff_i[line] = []
+#     diff_v0[line] = []
+#     diff_v1[line] = []
+# for i in range(6):
+#     j = i + 1
+#     while j < 6:
+#         for k in range(t):
+#             for line in shared[i]:
+#                 if line in shared[j]:
+#                     diff_p[line].append(abs(shared[i][line][k][0] - shared[j][line][k][0]))
+#                     diff_q[line].append(abs(shared[i][line][k][1] - shared[j][line][k][1]))
+#                     diff_i[line].append(abs(shared[i][line][k][2] - shared[j][line][k][2]))
+#                     diff_v0[line].append(abs(shared[i][line][k][3] - shared[j][line][k][3]))
+#                     diff_v1[line].append(abs(shared[i][line][k][4] - shared[j][line][k][4]))
+#         j += 1
+# test_name = "All rii with newest grouping 1"
+# recstart = 0
+# print(f"{test_name}")
+# # plt.figure()
+# # for line in shared_lines:
+# #     plt.plot(al[((6,7),0)])
+# # plt.title("Shared Params = P,Q,I,V | Power L mult")
+# # plt.savefig("./Graphs/"+test_name+"Lambda_power.png")
+# 
 # plt.figure()
 # for line in shared_lines:
-#     plt.plot(al[((6,7),0)])
-# plt.title("Shared Params = P,Q,I,V | Power L mult")
-# plt.savefig("./Graphs/"+test_name+"Lambda_power.png")
-
-plt.figure()
-for line in shared_lines:
-    plt.plot(diff_p[line][recstart:t])
-plt.title("Shared Params = P,Q,I,V | Active Power Diffs")
-plt.legend(leg)
-plt.savefig("./Graphs/"+test_name+"Active Power Diffs.png")
-plt.figure()
-for line in shared_lines:
-    plt.plot(diff_q[line][recstart:t])
-plt.legend(leg)
-plt.title("Shared Params = P,Q,I,V | Reactive Power Diffs")
-plt.savefig("./Graphs/"+test_name+"Reactive Power Diffs.png")
-plt.figure()
-for line in shared_lines:
-    plt.plot(diff_i[line][recstart:t])
-plt.legend(leg)
-plt.title("Shared Params = P,Q,I,V | Current Diffs")
-plt.savefig("./Graphs/"+test_name+"Current Diffs.png")
-plt.figure()
-for line in shared_lines:
-    plt.plot(diff_v0[line][recstart:t])
-plt.legend(leg)
-plt.title("Shared Params =  P,Q,I,V | Voltage at first bus Diffs")
-plt.savefig("./Graphs/"+test_name+"Voltage ast first bus Diffs.png")
-plt.figure()
-for line in shared_lines:
-    plt.plot(diff_v1[line][recstart:t])
-plt.legend(leg)
-plt.title("Shared Params =  P,Q,I,V | Voltage at second bus Diffs")
-plt.savefig("./Graphs/"+test_name+"Voltage at second bus Diffs.png")
-plt.figure()
-agg = {}
-for line in shared_lines:
-    agg[line] = []
-    for k in range(t):
-        agg[line].append(diff_v1[line][k] + diff_v0[line][k] + diff_i[line][k] + diff_q[line][k] + diff_p[line][k])
-for line in shared_lines:
-    plt.plot(agg[line])
-plt.legend(leg)
-plt.title("Shared Params = P,Q,I,V | sum of abs of all diffs (p,q,i,v)")
-plt.savefig("./Graphs/"+test_name+"aggregate.png")
-plt.figure()
-agg = {}
-for line in shared_lines:
-    agg[line] = []
-    for k in range(t):
-        agg[line].append(diff_v1[line][k] + diff_v0[line][k] + diff_i[line][k] + diff_q[line][k] + diff_p[line][k])
-for line in shared_lines:
-    plt.plot(agg[line][recstart:t])
-plt.legend(leg)
-plt.title("Shared Params = P,Q,I,V | sum of abs of all diffs (p,q,i,v)")
-plt.savefig("./Graphs/"+test_name+"aggregate after 100.png")
-print(f"saved")
-plt.show()
+#     plt.plot(diff_p[line][recstart:t])
+# plt.title("Shared Params = P,Q,I,V | Active Power Diffs")
+# plt.legend(leg)
+# plt.savefig("./Graphs/"+test_name+"Active Power Diffs.png")
+# plt.figure()
+# for line in shared_lines:
+#     plt.plot(diff_q[line][recstart:t])
+# plt.legend(leg)
+# plt.title("Shared Params = P,Q,I,V | Reactive Power Diffs")
+# plt.savefig("./Graphs/"+test_name+"Reactive Power Diffs.png")
+# plt.figure()
+# for line in shared_lines:
+#     plt.plot(diff_i[line][recstart:t])
+# plt.legend(leg)
+# plt.title("Shared Params = P,Q,I,V | Current Diffs")
+# plt.savefig("./Graphs/"+test_name+"Current Diffs.png")
+# plt.figure()
+# for line in shared_lines:
+#     plt.plot(diff_v0[line][recstart:t])
+# plt.legend(leg)
+# plt.title("Shared Params =  P,Q,I,V | Voltage at first bus Diffs")
+# plt.savefig("./Graphs/"+test_name+"Voltage ast first bus Diffs.png")
+# plt.figure()
+# for line in shared_lines:
+#     plt.plot(diff_v1[line][recstart:t])
+# plt.legend(leg)
+# plt.title("Shared Params =  P,Q,I,V | Voltage at second bus Diffs")
+# plt.savefig("./Graphs/"+test_name+"Voltage at second bus Diffs.png")
+# plt.figure()
+# agg = {}
+# for line in shared_lines:
+#     agg[line] = []
+#     for k in range(t):
+#         agg[line].append(diff_v1[line][k] + diff_v0[line][k] + diff_i[line][k] + diff_q[line][k] + diff_p[line][k])
+# for line in shared_lines:
+#     plt.plot(agg[line])
+# plt.legend(leg)
+# plt.title("Shared Params = P,Q,I,V | sum of abs of all diffs (p,q,i,v)")
+# plt.savefig("./Graphs/"+test_name+"aggregate.png")
+# plt.figure()
+# agg = {}
+# for line in shared_lines:
+#     agg[line] = []
+#     for k in range(t):
+#         agg[line].append(diff_v1[line][k] + diff_v0[line][k] + diff_i[line][k] + diff_q[line][k] + diff_p[line][k])
+# for line in shared_lines:
+#     plt.plot(agg[line][recstart:t])
+# plt.legend(leg)
+# plt.title("Shared Params = P,Q,I,V | sum of abs of all diffs (p,q,i,v)")
+# plt.savefig("./Graphs/"+test_name+"aggregate after 100.png")
+# print(f"saved")
+# plt.show()
 # print("--------------")
 # print("Total: ", sum([g.prob.objective.value for g in group]))
 # print(f"Final generator values (iteration {t}): ", [g.p_gen[generators[g.group]].value[()] for g in group])

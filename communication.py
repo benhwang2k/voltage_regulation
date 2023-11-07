@@ -14,7 +14,7 @@ import sys
 
 writer = None
 reader = None
-node_id = 0
+node_id = 5
 neigh_msg_counter = {}
 converge_recieved = False
 all_converged = False
@@ -155,8 +155,8 @@ def handle_modbus(msg):
 
 
 
-DERP_IP = 'localhost'
-#DERP_IP = '100.108.10.106'
+DERP_IP = '137.110.125.108'
+# DERP_IP = 'localhost'
 DERP_PORT = 10000
 
 

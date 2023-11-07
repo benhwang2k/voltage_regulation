@@ -39,9 +39,9 @@ def log(msg):
 async def run_server(ip, port):
     '''Create and run the DERP server'''
     log(f"Starting DERP server on {ip}:{port}")
-
+    
     server = await asyncio.start_server(handle_client, ip, port)
-
+    
     await server.serve_forever()
 
 
@@ -208,15 +208,15 @@ async def main():
     scada_client = ModbusTcpClient(scada_ip, scada_port)
     scada_client.connect()
 
-    epc_ip_query = text("SELECT ip, port from icore.tcp_addresses WHERE name = 'epc' AND type = 'hardware'")
-    epc_ip, epc_port = dbconn.connect().execute(epc_ip_query).fetchall()[0]
-    epc_client = ModbusTcpClient(epc_ip, epc_port)
-    epc_client.connect()
-    epc_client.write_register(246, 0) # disable
-    epc_client.write_register(3214, 1) # clear fault
-    epc_client.write_register(3215, 0) # command 0 kW
-    epc_client.write_register(3216, 0) # command 0 kVar
-    epc_client.write_register(246, 1) # enable
+    # epc_ip_query = text("SELECT ip, port from icore.tcp_addresses WHERE name = 'epc' AND type = 'hardware'")
+    # epc_ip, epc_port = dbconn.connect().execute(epc_ip_query).fetchall()[0]
+    # epc_client = ModbusTcpClient(epc_ip, epc_port)
+    # epc_client.connect()
+    # epc_client.write_register(246, 0) # disable
+    # epc_client.write_register(3214, 1) # clear fault
+    # epc_client.write_register(3215, 0) # command 0 kW
+    # epc_client.write_register(3216, 0) # command 0 kVar
+    # epc_client.write_register(246, 1) # enable
 
     setpoints = [(0. , 0.)] * 6
     voltages = [0] * 48

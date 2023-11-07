@@ -69,8 +69,10 @@ for t in range(100):
     group4.update_shared_powers(shared_active_group5, shared_reactive_group5)
     group4.update_shared_powers(shared_active_group6, shared_reactive_group6)
     # controllers at 2 and 4 update  lambdas
-    group2.update_lam(0.0001)
-    group4.update_lam(0.0001)
+    tot = 0
+    tot += group2.update_lam(0.0001)
+    tot += group4.update_lam(0.0001)
+    print("1 norm of differences: ", tot)
     # share the lambdas to other controllers
     group1.set_lam(group2.lam_active, group2.lam_reactive)
     group3.set_lam(group2.lam_active, group2.lam_reactive)

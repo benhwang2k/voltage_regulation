@@ -509,6 +509,7 @@ while sum([(e1 - e2)**2 for e1, e2 in zip(s1, s2)])**0.5 > 1e-6 and t < 1500:
     print(f"Iter: {t},  {[round(math.log10((e1 - e2)**2)) for e1, e2 in zip(s1, s2)]}", end ='\r' )#[str(g.prob.objective.value)[0:10] for g in group], end='\r')
     t = t + 1
 print(f"t: {t} Generation: {[group[i].p_gen[generators[i]].value[()] for i in range(6)]}")
+print(f"t: {t} Generation: {[group[i].p_gen[generators[i]].value[()] for i in range(6)]}")
 shared_lines = [(0,1), (0,3), (6,7), (10,27), (41,28)]
 diff_p = {}
 diff_q = {}
